@@ -40,6 +40,12 @@ export class DrizzleArticleRepository implements ArticleRepository {
     return rows[0] ? ArticleMapper.toDomain(rows[0]) : null;
   }
 
+  async findByIds(ids: string[]): Promise<Article[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db.select().from(newsArticles).where(inArray(newsArticles.id, ids));
+    return rows.map(ArticleMapper.toDomain);
+  }
+
   async list(filter: ArticleListFilter): Promise<Article[]> {
     const conditions = [];
     if (filter.date) {

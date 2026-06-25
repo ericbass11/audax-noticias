@@ -20,6 +20,9 @@ export interface ArticleRepository {
 
   findById(id: string): Promise<Article | null>;
 
+  /** Carrega múltiplos artigos por id (ex.: para (re)classificar um lote). */
+  findByIds(ids: string[]): Promise<Article[]>;
+
   /** Notícias para a interface/leitura, já com filtros opcionais. */
   list(filter: ArticleListFilter): Promise<Article[]>;
 }
