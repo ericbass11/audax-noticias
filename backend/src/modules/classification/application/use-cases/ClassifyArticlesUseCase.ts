@@ -97,7 +97,10 @@ export class ClassifyArticlesUseCase {
       });
 
       return parsed
-        .filter((r): r is LlmResultItem & { id: string } => Boolean(r.id) && byId.has(r.id))
+        .filter(
+          (r): r is LlmResultItem & { id: string } =>
+            typeof r.id === 'string' && byId.has(r.id),
+        )
         .map((r) => {
           const impact = isImpact(r.impacto) ? r.impacto : 'neutro';
           return new Classification({
