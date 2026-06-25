@@ -18,6 +18,7 @@
  */
 import { GNewsClient } from '../modules/collection/infrastructure/sources/GNewsClient.js';
 import { RssClient } from '../modules/collection/infrastructure/sources/RssClient.js';
+import { SerpApiClient } from '../modules/collection/infrastructure/sources/SerpApiClient.js';
 import type { NewsSource } from '../modules/collection/infrastructure/sources/NewsSource.js';
 import type { NormalizedArticleInput } from '../modules/collection/domain/entities/Article.js';
 import { Article } from '../modules/collection/domain/entities/Article.js';
@@ -143,6 +144,13 @@ async function main(): Promise<void> {
       country: process.env.GNEWS_COUNTRY ?? 'br',
       lang: process.env.GNEWS_LANG ?? 'pt',
       queries: csv(process.env.GNEWS_QUERIES),
+    }),
+    new SerpApiClient({
+      apiKey: process.env.SERPAPI_API_KEY ?? '',
+      baseUrl: process.env.SERPAPI_BASE_URL ?? 'https://serpapi.com/search',
+      gl: process.env.SERPAPI_GL ?? 'br',
+      hl: process.env.SERPAPI_HL ?? 'pt-br',
+      queries: csv(process.env.SERPAPI_QUERIES),
     }),
     new RssClient(csv(process.env.RSS_FEEDS)),
   ];

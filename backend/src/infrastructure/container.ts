@@ -5,6 +5,7 @@ import { db } from './database/client.js';
 import { DrizzleArticleRepository } from '../modules/collection/infrastructure/persistence/DrizzleArticleRepository.js';
 import { GNewsClient } from '../modules/collection/infrastructure/sources/GNewsClient.js';
 import { RssClient } from '../modules/collection/infrastructure/sources/RssClient.js';
+import { SerpApiClient } from '../modules/collection/infrastructure/sources/SerpApiClient.js';
 import type { NewsSource } from '../modules/collection/infrastructure/sources/NewsSource.js';
 import { CollectNewsUseCase } from '../modules/collection/application/use-cases/CollectNewsUseCase.js';
 
@@ -50,6 +51,13 @@ export function buildContainer() {
       country: env.GNEWS_COUNTRY,
       lang: env.GNEWS_LANG,
       queries: env.gnewsQueries,
+    }),
+    new SerpApiClient({
+      apiKey: env.SERPAPI_API_KEY,
+      baseUrl: env.SERPAPI_BASE_URL,
+      gl: env.SERPAPI_GL,
+      hl: env.SERPAPI_HL,
+      queries: env.serpapiQueries,
     }),
     new RssClient(env.rssFeeds),
   ];

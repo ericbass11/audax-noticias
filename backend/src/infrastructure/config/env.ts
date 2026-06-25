@@ -39,6 +39,13 @@ const envSchema = z.object({
 
   RSS_FEEDS: z.string().default(''),
 
+  // SerpAPI (engine google_news) — isolado atrás da interface NewsSource.
+  SERPAPI_API_KEY: z.string().default(''),
+  SERPAPI_BASE_URL: z.string().url().default('https://serpapi.com/search'),
+  SERPAPI_GL: z.string().default('br'),
+  SERPAPI_HL: z.string().default('pt-br'),
+  SERPAPI_QUERIES: z.string().default(''),
+
   // LLM via gateway LiteLLM (compatível OpenAI/Anthropic). Nunca provedor direto.
   LITELLM_BASE_URL: z.string().url().default('http://localhost:4000'),
   LITELLM_API_KEY: z.string().default(''),
@@ -78,6 +85,7 @@ export const env = {
   // Derivados: listas já parseadas a partir de CSV.
   gnewsQueries: csv(raw.GNEWS_QUERIES),
   rssFeeds: csv(raw.RSS_FEEDS),
+  serpapiQueries: csv(raw.SERPAPI_QUERIES),
   evolutionRecipients: csv(raw.EVOLUTION_RECIPIENTS),
   isProduction: raw.NODE_ENV === 'production',
 };

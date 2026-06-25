@@ -19,9 +19,9 @@ WhatsApp** para o C-Level e alimenta um **dashboard web**.
                                                               │
         ┌─────────────────────────────────────────────────────┘
         ▼
-  Collection  ──▶  Classification (LiteLLM)  ──▶  PERSISTE  ──▶  Notification (Evolution/WhatsApp)
-  GNews + RSS      impacto/relevância/justif.     Postgres        resumo executivo p/ C-Level
-  dedup por hash   + resumo executivo
+  Collection         ──▶  Classification (LiteLLM)  ──▶  PERSISTE  ──▶  Notification (WhatsApp)
+  GNews+SerpAPI+RSS       impacto/relevância/justif.     Postgres        resumo p/ C-Level
+  dedup por hash          + resumo executivo
         │                                            │
         └────────────────────────────────────────────┴──▶  API REST  ──▶  Dashboard Next.js
 ```
@@ -50,6 +50,7 @@ Credenciais que **você precisa fornecer** (estão como placeholders no `.env.ex
 | Variável | Para quê |
 |---|---|
 | `GNEWS_API_KEY` | coleta via GNews (gnews.io) |
+| `SERPAPI_API_KEY` | coleta via SerpAPI (engine google_news) |
 | `RSS_FEEDS` | URLs reais de feeds de agro/economia |
 | `LITELLM_BASE_URL` / `LITELLM_API_KEY` / `LITELLM_MODEL` | gateway LiteLLM p/ classificação |
 | `EVOLUTION_BASE_URL` / `EVOLUTION_INSTANCE` / `EVOLUTION_API_KEY` | WhatsApp |
