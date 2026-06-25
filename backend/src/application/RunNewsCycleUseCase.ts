@@ -1,4 +1,5 @@
 import type { CollectNewsUseCase } from '../modules/collection/application/use-cases/CollectNewsUseCase.js';
+import type { TriageArticlesUseCase } from '../modules/classification/application/use-cases/TriageArticlesUseCase.js';
 import type { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import type { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 import type { DispatchSummaryUseCase } from '../modules/notification/application/use-cases/DispatchSummaryUseCase.js';
@@ -19,6 +20,7 @@ export interface RunNewsCycleResult {
   status: 'completed' | 'skipped' | 'failed';
   collected?: number;
   deduped?: number;
+  triaged?: number;
   classified?: number;
   summaryId?: string;
   dispatch?: { sent: number; failed: number; skipped: number };
@@ -38,6 +40,7 @@ export class RunNewsCycleUseCase {
   constructor(
     private readonly runs: ProcessingRunRepository,
     private readonly collect: CollectNewsUseCase,
+    private readonly triage: TriageArticlesUseCase,
     private readonly classify: ClassifyArticlesUseCase,
     private readonly generateSummary: GenerateSummaryUseCase,
     private readonly summaries: SummaryRepository,
@@ -55,29 +58,41 @@ export class RunNewsCycleUseCase {
       // 1. Coleta + dedup + persistência das notícias novas.
       const collection = await this.collect.execute(run.id!);
 
-      // 2. Classificação dos artigos novos (se houver).
-      const classification = await this.classify.execute(collection.savedArticleIds);
-      run.complete({
-        collected: collection.collected,
-        deduped: collection.deduped,
-        classified: classification.classified,
-      });
-
-      // Sem notícias novas → conclui o turno sem resumo/disparo.
+      // Sem notícias novas → conclui o turno sem triagem/classificação.
       if (collection.savedArticleIds.length === 0) {
+        run.complete({
+          collected: collection.collected,
+          deduped: 0,
+          triaged: 0,
+          classified: 0,
+        });
         await this.runs.update(run);
         return {
           periodKey: input.periodKey,
           status: 'completed',
           collected: collection.collected,
           deduped: 0,
+          triaged: 0,
           classified: 0,
           reason: 'nenhuma notícia nova',
         };
       }
 
-      // 3. Resumo executivo consolidado.
-      const summary = await this.generateSummary.execute(collection.savedArticleIds);
+      // 2. Triagem barata (modelo leve): corta o volume ANTES da classificação
+      // cara. Só os títulos promissores seguem para o modelo de classificação.
+      const triage = await this.triage.execute(collection.savedArticleIds);
+
+      // 3. Classificação profunda só dos sobreviventes da triagem.
+      const classification = await this.classify.execute(triage.survivorIds);
+      run.complete({
+        collected: collection.collected,
+        deduped: collection.deduped,
+        triaged: triage.survivorIds.length,
+        classified: classification.classified,
+      });
+
+      // 4. Resumo executivo consolidado (aplica o piso de relevância do CEO).
+      const summary = await this.generateSummary.execute(triage.survivorIds);
       if (!summary) {
         await this.runs.update(run);
         return {
@@ -85,12 +100,13 @@ export class RunNewsCycleUseCase {
           status: 'completed',
           collected: collection.collected,
           deduped: collection.deduped,
+          triaged: triage.survivorIds.length,
           classified: classification.classified,
-          reason: 'sem itens classificados para resumir',
+          reason: 'sem itens acima do piso de relevância',
         };
       }
 
-      // 4. PERSISTE o resumo antes de qualquer envio (idempotente por periodKey).
+      // 5. PERSISTE o resumo antes de qualquer envio (idempotente por periodKey).
       const persisted = await this.summaries.save(
         new ExecutiveSummary({
           runId: run.id!,
@@ -105,7 +121,7 @@ export class RunNewsCycleUseCase {
 
       await this.runs.update(run);
 
-      // 5. Só então dispara no WhatsApp.
+      // 6. Só então dispara no WhatsApp.
       const dispatchResult = await this.dispatch.execute(persisted.id!);
 
       return {
@@ -113,6 +129,7 @@ export class RunNewsCycleUseCase {
         status: 'completed',
         collected: collection.collected,
         deduped: collection.deduped,
+        triaged: triage.survivorIds.length,
         classified: classification.classified,
         summaryId: persisted.id,
         dispatch: {

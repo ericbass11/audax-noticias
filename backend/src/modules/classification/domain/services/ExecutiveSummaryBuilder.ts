@@ -22,14 +22,25 @@ const IMPACT_EMOJI: Record<Impact, string> = {
  * LLM falhe, garantindo que SEMPRE haja um resumo para disparar.
  */
 export class ExecutiveSummaryBuilder {
-  static readonly MIN = 3;
-  static readonly MAX = 5;
+  /**
+   * @param minRelevance piso: só entram notícias com relevância >= este valor.
+   * @param maxItems teto de itens no resumo (evita "entupir" o WhatsApp).
+   */
+  constructor(
+    private readonly minRelevance = 0,
+    private readonly maxItems = 5,
+  ) {}
 
-  /** Top N por relevância (desc). Usado tanto p/ o prompt quanto p/ o fallback. */
+  /**
+   * Seleciona o que vai ao CEO: aplica o PISO de relevância e então o TETO de
+   * itens (maiores relevâncias primeiro). Pode retornar lista vazia num dia
+   * sem nada relevante — nesse caso não há resumo a disparar.
+   */
   selectTop(scored: ScoredArticle[]): ScoredArticle[] {
     return [...scored]
+      .filter((s) => s.classification.relevance >= this.minRelevance)
       .sort((a, b) => b.classification.relevance - a.classification.relevance)
-      .slice(0, ExecutiveSummaryBuilder.MAX);
+      .slice(0, this.maxItems);
   }
 
   /** Texto determinístico (fallback) a partir do top selecionado. */

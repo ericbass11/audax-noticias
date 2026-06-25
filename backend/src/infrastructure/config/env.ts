@@ -30,6 +30,10 @@ const envSchema = z.object({
   CRON_MORNING: z.string().default('0 8 * * *'),
   CRON_EVENING: z.string().default('0 18 * * *'),
 
+  // Janela de recência: só entram notícias publicadas nas últimas N horas.
+  // Evita coletar/classificar matérias antigas que as fontes devolvem junto.
+  COLLECT_MAX_AGE_HOURS: z.coerce.number().default(24),
+
   // GNews — isolado atrás da interface NewsSource para troca futura.
   GNEWS_API_KEY: z.string().default(''),
   GNEWS_BASE_URL: z.string().url().default('https://gnews.io/api/v4'),
@@ -52,6 +56,21 @@ const envSchema = z.object({
   // Anthropic direto (quando LLM_PROVIDER=anthropic).
   ANTHROPIC_API_KEY: z.string().default(''),
   ANTHROPIC_MODEL: z.string().default('claude-opus-4-8'),
+
+  // Triagem barata (modelo leve) antes da classificação profunda. Pontua os
+  // títulos e só os promissores seguem para o modelo caro.
+  TRIAGE_MODEL: z.string().default('claude-haiku-4-5'),
+  TRIAGE_MIN_SCORE: z.coerce.number().default(40),
+  TRIAGE_MAX_TO_CLASSIFY: z.coerce.number().default(50),
+
+  // Gate do resumo executivo (o que chega no WhatsApp do CEO).
+  SUMMARY_MIN_RELEVANCE: z.coerce.number().default(65),
+  SUMMARY_MAX_ITEMS: z.coerce.number().default(7),
+  // false: dia sem nada acima do piso → não dispara nada (silêncio).
+  SEND_ON_EMPTY: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
 
   // Gateway LiteLLM (quando LLM_PROVIDER=litellm).
   LITELLM_BASE_URL: z.string().url().default('http://localhost:4000'),

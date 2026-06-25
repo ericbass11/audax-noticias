@@ -28,7 +28,7 @@ export interface GenerateSummaryResult {
  * garantindo que o disparo nunca fique sem conteúdo.
  */
 export class GenerateSummaryUseCase {
-  private readonly builder = new ExecutiveSummaryBuilder();
+  private readonly builder: ExecutiveSummaryBuilder;
 
   constructor(
     private readonly articleRepository: ArticleRepository,
@@ -36,7 +36,13 @@ export class GenerateSummaryUseCase {
     private readonly llm: LlmClient,
     private readonly audit: AuditLogger,
     private readonly webAppUrl: string,
-  ) {}
+    /** Piso de relevância p/ o resumo (gate do CEO). */
+    minRelevance = 0,
+    /** Teto de itens no resumo. */
+    maxItems = 5,
+  ) {
+    this.builder = new ExecutiveSummaryBuilder(minRelevance, maxItems);
+  }
 
   async execute(articleIds: string[]): Promise<GenerateSummaryResult | null> {
     const articles = await this.articleRepository.findByIds(articleIds);
@@ -52,6 +58,8 @@ export class GenerateSummaryUseCase {
     if (scored.length === 0) return null;
 
     const top = this.builder.selectTop(scored);
+    // Nada acima do piso de relevância → sem resumo (não dispara nada).
+    if (top.length === 0) return null;
     const rankedArticleIds = top.map((s) => s.article.id!);
 
     // Tenta gerar via LLM; em qualquer falha usa o fallback determinístico.

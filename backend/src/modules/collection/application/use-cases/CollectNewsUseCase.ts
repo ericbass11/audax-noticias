@@ -1,10 +1,11 @@
-import { Article } from '../../domain/entities/Article.js';
+import { Article, type NormalizedArticleInput } from '../../domain/entities/Article.js';
 import type { ArticleRepository } from '../../domain/repositories/ArticleRepository.js';
 import { DeduplicationService } from '../../domain/services/DeduplicationService.js';
 import type { NewsSource } from '../../infrastructure/sources/NewsSource.js';
 
 export interface CollectNewsResult {
   collected: number; // total bruto vindo das fontes
+  recent: number; // após aplicar a janela de recência
   deduped: number; // após remover duplicatas no lote + já existentes
   savedArticleIds: string[]; // novos persistidos (vão para classificação)
 }
@@ -23,6 +24,8 @@ export class CollectNewsUseCase {
   constructor(
     private readonly sources: NewsSource[],
     private readonly articleRepository: ArticleRepository,
+    /** Janela de recência em horas; 0 desliga o filtro (coleta tudo). */
+    private readonly maxAgeHours: number = 24,
     private readonly dedup: DeduplicationService = new DeduplicationService(),
   ) {}
 
@@ -37,8 +40,17 @@ export class CollectNewsUseCase {
 
     const collected = normalized.length;
 
+    // 1b. Janela de recência: descarta matérias antigas que as fontes devolvem
+    // junto com as do dia. Itens sem data são mantidos (não dá para datar).
+    const recent = this.maxAgeHours > 0 ? this.filterRecent(normalized) : normalized;
+    if (this.maxAgeHours > 0) {
+      console.log(
+        `🕒 Recência (${this.maxAgeHours}h): ${recent.length}/${collected} dentro da janela.`,
+      );
+    }
+
     // 2. + 3. Entidades + dedup dentro do lote.
-    const articles = normalized
+    const articles = recent
       .filter((n) => n.title && n.url)
       .map((n) => Article.fromNormalized(n, runId));
     const uniqueInBatch = this.dedup.dedupeWithinBatch(articles);
@@ -54,8 +66,15 @@ export class CollectNewsUseCase {
 
     return {
       collected,
+      recent: recent.length,
       deduped: fresh.length,
       savedArticleIds: saved.map((a) => a.id!).filter(Boolean),
     };
+  }
+
+  /** Mantém itens publicados nas últimas `maxAgeHours`; sem data → mantém. */
+  private filterRecent(items: NormalizedArticleInput[]): NormalizedArticleInput[] {
+    const cutoff = Date.now() - this.maxAgeHours * 60 * 60 * 1000;
+    return items.filter((n) => !n.publishedAt || n.publishedAt.getTime() >= cutoff);
   }
 }

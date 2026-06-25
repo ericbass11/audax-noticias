@@ -4,6 +4,7 @@ export type TriggerType = 'scheduled' | 'manual';
 export interface RunCounts {
   collected?: number;
   deduped?: number;
+  triaged?: number;
   classified?: number;
 }
 

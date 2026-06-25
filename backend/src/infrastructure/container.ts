@@ -16,6 +16,7 @@ import { AuditLogger } from '../modules/classification/infrastructure/audit/Audi
 import { LiteLLMClient } from '../modules/classification/infrastructure/llm/LiteLLMClient.js';
 import { AnthropicClient } from '../modules/classification/infrastructure/llm/AnthropicClient.js';
 import type { LlmClient } from '../modules/classification/infrastructure/llm/LlmClient.js';
+import { TriageArticlesUseCase } from '../modules/classification/application/use-cases/TriageArticlesUseCase.js';
 import { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 
@@ -79,6 +80,16 @@ export function buildContainer() {
       env.LLM_PROVIDER === 'anthropic' ? env.ANTHROPIC_MODEL : env.LITELLM_MODEL
     })`,
   );
+
+  // Cliente de TRIAGEM (modelo leve/barato). Com Anthropic, usa TRIAGE_MODEL;
+  // no gateway LiteLLM, reaproveita o mesmo cliente/modelo configurado.
+  const triageLlm: LlmClient =
+    env.LLM_PROVIDER === 'anthropic'
+      ? new AnthropicClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.TRIAGE_MODEL })
+      : llm;
+  if (env.LLM_PROVIDER === 'anthropic') {
+    console.log(`🔎 Triagem (modelo leve): ${env.TRIAGE_MODEL}`);
+  }
   const auditLogger = new AuditLogger(auditRepository, {
     enabled: env.LANGFUSE_ENABLED,
     publicKey: env.LANGFUSE_PUBLIC_KEY,
@@ -95,7 +106,19 @@ export function buildContainer() {
   });
 
   // --- Use cases ---
-  const collectNews = new CollectNewsUseCase(sources, articleRepository);
+  const collectNews = new CollectNewsUseCase(
+    sources,
+    articleRepository,
+    env.COLLECT_MAX_AGE_HOURS,
+  );
+  const triageArticles = new TriageArticlesUseCase(
+    articleRepository,
+    triageLlm,
+    auditLogger,
+    env.LLM_BATCH_SIZE,
+    env.TRIAGE_MIN_SCORE,
+    env.TRIAGE_MAX_TO_CLASSIFY,
+  );
   const classifyArticles = new ClassifyArticlesUseCase(
     articleRepository,
     classificationRepository,
@@ -109,6 +132,8 @@ export function buildContainer() {
     llm,
     auditLogger,
     env.WEB_APP_URL,
+    env.SUMMARY_MIN_RELEVANCE,
+    env.SUMMARY_MAX_ITEMS,
   );
   const dispatchSummary = new DispatchSummaryUseCase(
     summaryRepository,
@@ -121,6 +146,7 @@ export function buildContainer() {
   const runNewsCycle = new RunNewsCycleUseCase(
     runRepository,
     collectNews,
+    triageArticles,
     classifyArticles,
     generateSummary,
     summaryRepository,

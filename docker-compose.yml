@@ -7,7 +7,9 @@ services:
       POSTGRES_PASSWORD: audax
       POSTGRES_DB: audax_noticias
     ports:
-      - "5432:5432"
+      # 5433 no host (a 5432 já é usada por outro container nesta máquina);
+      # dentro da rede do compose o backend continua falando na 5432.
+      - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

@@ -48,15 +48,20 @@ export class ClassifyArticlesUseCase {
     if (articles.length === 0) return { classified: 0, classificationIds: [] };
 
     const batches = this.chunk(articles, this.batchSize);
-    const allClassifications: Classification[] = [];
+    const classificationIds: string[] = [];
 
-    for (const batch of batches) {
-      const classified = await this.classifyBatch(batch);
-      allClassifications.push(...classified);
+    // Persiste LOTE A LOTE: cada lote classificado é gravado imediatamente.
+    // Assim uma interrupção no meio do ciclo preserva o que já foi feito
+    // (em vez do antigo "tudo ou nada" só no final).
+    for (let i = 0; i < batches.length; i++) {
+      const classified = await this.classifyBatch(batches[i]!);
+      if (classified.length === 0) continue;
+      const saved = await this.classificationRepository.saveBatch(classified);
+      classificationIds.push(...saved.map((c) => c.id!));
+      console.log(`💾 Lote ${i + 1}/${batches.length}: ${saved.length} classificações gravadas.`);
     }
 
-    const saved = await this.classificationRepository.saveBatch(allClassifications);
-    return { classified: saved.length, classificationIds: saved.map((c) => c.id!) };
+    return { classified: classificationIds.length, classificationIds };
   }
 
   private async classifyBatch(batch: Article[]): Promise<Classification[]> {
