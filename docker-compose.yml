@@ -40,13 +40,13 @@ services:
       # Sobrescreve hosts para a rede do compose (ignora o que vier do .env).
       DATABASE_URL: postgresql://audax:audax@postgres:5432/audax_noticias
       REDIS_URL: redis://redis:6379
-      # Aponta para o LiteLLM do gateway externo (stack audax-ai-gateway),
-      # alcançável pelo nome do serviço na rede compartilhada abaixo.
-      # LITELLM_API_KEY vem do .env (virtual key emitida pelo gateway).
-      LITELLM_BASE_URL: http://litellm:4000
-    networks:
-      - default
-      - gateway
+      # Fala com o LiteLLM que roda NA SUA MÁQUINA (fora do compose), na porta
+      # 4000. LITELLM_API_KEY vem do .env (virtual key emitida pelo gateway).
+      LITELLM_BASE_URL: http://host.docker.internal:4000
+    extra_hosts:
+      # Garante a resolução de host.docker.internal (necessário no Linux;
+      # no Docker Desktop Win/Mac já funciona, e isto não atrapalha).
+      - "host.docker.internal:host-gateway"
     ports:
       - "3333:3333"
     depends_on:
@@ -56,15 +56,6 @@ services:
         condition: service_healthy
     # Aplica migrations e sobe a API. Cron e workers rodam embutidos no serviço.
     command: sh -c "pnpm db:migrate && node dist/main.js"
-
-networks:
-  # Rede do stack do gateway de IA (docker-compose do C:\LLMlite, project
-  # "audax-ai-gateway" → rede "audax-gw"). Marcada como externa: suba o gateway
-  # primeiro. Se preferir desacoplar, remova esta rede e aponte LITELLM_BASE_URL
-  # para http://host.docker.internal:4000 no .env.
-  gateway:
-    external: true
-    name: audax-ai-gateway_audax-gw
 
 volumes:
   postgres-data:
