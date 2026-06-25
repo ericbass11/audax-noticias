@@ -1,0 +1,64 @@
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import type { Database } from '../../../../infrastructure/database/client.js';
+import { newsArticles } from '../../../../infrastructure/database/schema.js';
+import { Article } from '../../domain/entities/Article.js';
+import type {
+  ArticleListFilter,
+  ArticleRepository,
+} from '../../domain/repositories/ArticleRepository.js';
+import { ArticleMapper } from '../mappers/ArticleMapper.js';
+
+const SAO_PAULO = 'America/Sao_Paulo';
+
+export class DrizzleArticleRepository implements ArticleRepository {
+  constructor(private readonly db: Database) {}
+
+  async saveNew(articles: Article[]): Promise<Article[]> {
+    if (articles.length === 0) return [];
+
+    // ON CONFLICT (content_hash) DO NOTHING — só insere o que ainda não existe.
+    const rows = await this.db
+      .insert(newsArticles)
+      .values(articles.map(ArticleMapper.toInsert))
+      .onConflictDoNothing({ target: newsArticles.contentHash })
+      .returning();
+
+    return rows.map(ArticleMapper.toDomain);
+  }
+
+  async findExistingHashes(hashes: string[]): Promise<Set<string>> {
+    if (hashes.length === 0) return new Set();
+    const rows = await this.db
+      .select({ contentHash: newsArticles.contentHash })
+      .from(newsArticles)
+      .where(inArray(newsArticles.contentHash, hashes));
+    return new Set(rows.map((r) => r.contentHash));
+  }
+
+  async findById(id: string): Promise<Article | null> {
+    const rows = await this.db.select().from(newsArticles).where(eq(newsArticles.id, id)).limit(1);
+    return rows[0] ? ArticleMapper.toDomain(rows[0]) : null;
+  }
+
+  async list(filter: ArticleListFilter): Promise<Article[]> {
+    const conditions = [];
+    if (filter.date) {
+      // Compara a data de publicação no fuso de São Paulo com o dia pedido.
+      conditions.push(
+        sql`(${newsArticles.publishedAt} AT TIME ZONE ${SAO_PAULO})::date = ${filter.date}::date`,
+      );
+    }
+    if (filter.category) {
+      conditions.push(eq(newsArticles.rawCategory, filter.category));
+    }
+
+    const rows = await this.db
+      .select()
+      .from(newsArticles)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(desc(newsArticles.publishedAt))
+      .limit(filter.limit ?? 200);
+
+    return rows.map(ArticleMapper.toDomain);
+  }
+}
