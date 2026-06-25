@@ -1,0 +1,17 @@
+{
+  "name": "audax-noticias",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Serviço de monitoramento de notícias para a Audax Capital (FIDC de recebíveis agro)",
+  "scripts": {
+    "dev:backend": "pnpm --filter @audax/backend dev",
+    "dev:frontend": "pnpm --filter @audax/frontend dev",
+    "build": "pnpm -r build",
+    "db:generate": "pnpm --filter @audax/backend db:generate",
+    "db:migrate": "pnpm --filter @audax/backend db:migrate"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

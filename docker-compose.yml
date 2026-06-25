@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: audax-postgres
+    environment:
+      POSTGRES_USER: audax
+      POSTGRES_PASSWORD: audax
+      POSTGRES_DB: audax_noticias
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audax -d audax_noticias"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: audax-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: audax-backend
+    env_file:
+      - .env
+    environment:
+      # Sobrescreve hosts para a rede do compose (ignora o que vier do .env).
+      DATABASE_URL: postgresql://audax:audax@postgres:5432/audax_noticias
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3333:3333"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Aplica migrations e sobe a API. Cron e workers rodam embutidos no serviço.
+    command: sh -c "pnpm db:migrate && node dist/main.js"
+
+volumes:
+  postgres-data:
+  redis-data:
