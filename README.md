@@ -52,7 +52,7 @@ Credenciais que **você precisa fornecer** (estão como placeholders no `.env.ex
 | `GNEWS_API_KEY` | coleta via GNews (gnews.io) |
 | `SERPAPI_API_KEY` | coleta via SerpAPI (engine google_news) |
 | `RSS_FEEDS` | URLs reais de feeds de agro/economia |
-| `LITELLM_BASE_URL` / `LITELLM_API_KEY` / `LITELLM_MODEL` | gateway LiteLLM p/ classificação |
+| `LITELLM_BASE_URL` / `LITELLM_API_KEY` / `LITELLM_MODEL` | gateway LiteLLM externo (ver abaixo) p/ classificação |
 | `EVOLUTION_BASE_URL` / `EVOLUTION_INSTANCE` / `EVOLUTION_API_KEY` | WhatsApp |
 | `EVOLUTION_RECIPIENTS` | grupos/contatos que recebem o resumo |
 
@@ -71,6 +71,24 @@ docker compose up --build
 
 - API: <http://localhost:3333> (`GET /health` para checar).
 - O backend aplica as migrations no start (`pnpm db:migrate`) e sobe API + worker + cron.
+
+### Gateway de LLM (stack externa `audax-ai-gateway`)
+
+Este projeto **não sobe o LiteLLM** — ele consome o **gateway de IA da empresa**
+(stack separada: LiteLLM + Langfuse + Presidio). Suba o gateway primeiro; o
+`docker-compose` daqui se conecta a ele pela rede externa `audax-ai-gateway_audax-gw`
+e alcança o LiteLLM em `http://litellm:4000`. No `.env`, preencha apenas
+`LITELLM_API_KEY` (uma *virtual key* emitida pelo gateway) e `LITELLM_MODEL`.
+
+- As chaves reais de Anthropic/OpenAI/Gemini ficam no `.env` do **gateway**, não aqui.
+- O LiteLLM já envia as chamadas ao **Langfuse** (auditoria/custo/latência) e o
+  **Presidio** mascara PII antes de ir ao provedor — então observabilidade e LGPD
+  já estão cobertas no gateway. Mantemos também `llm_audit_logs` como trilha local.
+- **Desacoplar (opcional):** se não quiser usar a rede externa, remova a rede
+  `gateway` do `docker-compose.yml` e aponte `LITELLM_BASE_URL=http://host.docker.internal:4000`.
+- ⚠️ **Conflito de porta 3000:** o Langfuse do gateway publica em `:3000`, mesma
+  porta do frontend Next em dev. Rode o frontend em outra porta (ex.: `next dev -p 3001`)
+  se for usar a UI do Langfuse localmente ao mesmo tempo.
 
 O **frontend** roda fora do compose (dev):
 
@@ -151,14 +169,17 @@ testa só o RSS) e imprime contagem de coletados / válidos / únicos após dedu
 - **GNews trocável:** isolado atrás da interface `NewsSource` — trocar por NewsData.io é
   escrever outra implementação. O plano free do GNews limita resultados/rate; fazemos 1
   request por termo de `GNEWS_QUERIES`.
-- **LiteLLM, nunca provedor direto:** cliente compatível OpenAI/Anthropic. Forçamos JSON
-  (`response_format`) e fazemos **parse defensivo** (`try/catch`). Se o seu modelo não suportar
-  `response_format`, o prompt ainda exige "somente JSON".
+- **LiteLLM, nunca provedor direto:** cliente compatível OpenAI/Anthropic apontado para o
+  gateway externo. Forçamos JSON (`response_format`) e fazemos **parse defensivo** (`try/catch`).
+  Enviamos `temperature` (0.2). ⚠️ **Opus 4.8/4.7 rejeitam `temperature` com erro 400** — então
+  garanta `litellm_settings: drop_params: true` no `config.yaml` do gateway (ele descarta o
+  parâmetro para os modelos que não o aceitam e mantém para o GPT). O fallback de modelo
+  (Claude→GPT) também é responsabilidade do gateway, não do app.
 - **Resumo com fallback:** se o LLM falhar ao redigir o resumo, há um texto determinístico de
   fallback — o disparo nunca fica sem conteúdo.
-- **Auditoria + Langfuse:** toda chamada de LLM é gravada em `llm_audit_logs`. O
-  `AuditLogger.forwardToLangfuse` é o **hook preparado** para integrar Langfuse depois
-  (hoje no-op quando `LANGFUSE_ENABLED=false`).
+- **Auditoria + Langfuse:** o **gateway** já envia as chamadas ao Langfuse (custo/latência/prompts).
+  No app, mantemos `llm_audit_logs` como trilha local; `AuditLogger.forwardToLangfuse` é um hook
+  app-level opcional (no-op quando `LANGFUSE_ENABLED=false`).
 - **Evolution API:** o payload varia entre versões; implementamos o formato v2
   (`{ number, text }`) isolado em `EvolutionApiClient.buildBody()` — ponto único de ajuste.
 - **Processo único:** API + worker + cron rodam juntos (deploy local simples). Para escalar,
