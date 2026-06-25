@@ -33,7 +33,15 @@ export class RssClient implements NewsSource {
   }
 
   private async fetchFeed(url: string): Promise<NormalizedArticleInput[]> {
-    const feed = await this.parser.parseURL(url);
+    // Busca via fetch (caminho HTTP único, timeout explícito e cabeçalho de
+    // user-agent que muitos feeds exigem) e parseia o XML como string.
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'user-agent': 'AudaxNoticiasBot/1.0 (+https://audaxcapital.com.br)' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const xml = await res.text();
+    const feed = await this.parser.parseString(xml);
     const sourceName = feed.title ?? url;
 
     return (feed.items ?? []).map((item) => ({
@@ -42,8 +50,23 @@ export class RssClient implements NewsSource {
       url: item.link ?? url,
       source: sourceName,
       sourceType: 'rss' as const,
-      rawCategory: item.categories?.[0] ?? null,
+      rawCategory: this.extractCategory(item.categories),
       publishedAt: item.isoDate ? new Date(item.isoDate) : null,
     }));
+  }
+
+  /**
+   * `<category>` pode vir como string ou como objeto (quando tem atributos
+   * como `domain`). rss-parser expõe o texto em `_`. Normaliza para string.
+   */
+  private extractCategory(categories: unknown): string | null {
+    if (!Array.isArray(categories) || categories.length === 0) return null;
+    const first = categories[0];
+    if (typeof first === 'string') return first;
+    if (first && typeof first === 'object' && '_' in first) {
+      const text = (first as { _: unknown })._;
+      return typeof text === 'string' ? text : null;
+    }
+    return null;
   }
 }

@@ -10,6 +10,7 @@
     "start": "node dist/main.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/infrastructure/database/migrate.ts",
+    "test:capture": "node --env-file=../.env --import tsx src/scripts/test-capture.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
     "@types/pg": "^8.11.6",
     "drizzle-kit": "^0.24.0",
     "tsx": "^4.16.0",
+    "undici": "^6.19.0",
     "typescript": "^5.5.0"
   }
 }

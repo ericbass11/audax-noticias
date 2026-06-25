@@ -111,6 +111,22 @@ pnpm dev:frontend                    # http://localhost:3000
 - **Dashboard:** abra <http://localhost:3000>, filtre por data/categoria, clique
   **"Coletar agora"** para disparar um ciclo manual.
 
+### Testar a captura das fontes (sem subir banco/fila)
+
+Valida credenciais e mostra o que cada fonte retorna já normalizado, sem precisar
+de Postgres/Redis:
+
+```bash
+cd backend
+pnpm test:capture                 # roda GNews + RSS conforme o .env da raiz
+pnpm test:capture --limit=10      # mostra até 10 itens por fonte
+pnpm test:capture --classify      # + 1 chamada de teste ao LiteLLM (parsing do JSON)
+pnpm test:capture --json          # imprime o array normalizado completo
+```
+
+O script ignora fontes sem credencial (ex.: sem `GNEWS_API_KEY` ele pula o GNews e
+testa só o RSS) e imprime contagem de coletados / válidos / únicos após dedup.
+
 ### Endpoints
 
 | Método | Rota | Descrição |
