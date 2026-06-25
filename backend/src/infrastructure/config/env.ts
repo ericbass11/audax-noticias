@@ -46,10 +46,17 @@ const envSchema = z.object({
   SERPAPI_HL: z.string().default('pt-br'),
   SERPAPI_QUERIES: z.string().default(''),
 
-  // LLM via gateway LiteLLM (compatível OpenAI/Anthropic). Nunca provedor direto.
+  // Provedor de LLM: 'anthropic' chama o Claude direto; 'litellm' usa o gateway.
+  LLM_PROVIDER: z.enum(['anthropic', 'litellm']).default('litellm'),
+
+  // Anthropic direto (quando LLM_PROVIDER=anthropic).
+  ANTHROPIC_API_KEY: z.string().default(''),
+  ANTHROPIC_MODEL: z.string().default('claude-opus-4-8'),
+
+  // Gateway LiteLLM (quando LLM_PROVIDER=litellm).
   LITELLM_BASE_URL: z.string().url().default('http://localhost:4000'),
   LITELLM_API_KEY: z.string().default(''),
-  LITELLM_MODEL: z.string().default('claude-opus-4-8'),
+  LITELLM_MODEL: z.string().default('claude-general'),
   LLM_BATCH_SIZE: z.coerce.number().default(10),
 
   LANGFUSE_ENABLED: z

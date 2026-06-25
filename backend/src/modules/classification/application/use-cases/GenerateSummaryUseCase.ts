@@ -5,7 +5,7 @@ import {
   type ScoredArticle,
 } from '../../domain/services/ExecutiveSummaryBuilder.js';
 import type { AuditLogger } from '../../infrastructure/audit/AuditLogger.js';
-import type { LiteLLMClient } from '../../infrastructure/llm/LiteLLMClient.js';
+import type { LlmClient } from '../../infrastructure/llm/LlmClient.js';
 import {
   SUMMARY_SYSTEM_PROMPT,
   buildSummaryUserPrompt,
@@ -33,7 +33,7 @@ export class GenerateSummaryUseCase {
   constructor(
     private readonly articleRepository: ArticleRepository,
     private readonly classificationRepository: ClassificationRepository,
-    private readonly llm: LiteLLMClient,
+    private readonly llm: LlmClient,
     private readonly audit: AuditLogger,
     private readonly webAppUrl: string,
   ) {}

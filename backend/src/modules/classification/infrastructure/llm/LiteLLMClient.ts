@@ -1,24 +1,9 @@
+import type { CompletionRequest, CompletionResult, LlmClient } from './LlmClient.js';
+
 export interface LiteLLMConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
-}
-
-export interface CompletionRequest {
-  system: string;
-  user: string;
-  /** Força `response_format: json_object` no gateway (sem markdown/preâmbulo). */
-  jsonMode?: boolean;
-  temperature?: number;
-}
-
-export interface CompletionResult {
-  text: string;
-  model: string;
-  latencyMs: number;
-  tokensInput: number | null;
-  tokensOutput: number | null;
-  raw: unknown;
 }
 
 interface OpenAICompatibleResponse {
@@ -34,7 +19,7 @@ interface OpenAICompatibleResponse {
  * O modelo é definido por config (LITELLM_MODEL) e pode ser trocado sem mexer
  * no código. A medição de latência aqui alimenta a auditoria.
  */
-export class LiteLLMClient {
+export class LiteLLMClient implements LlmClient {
   constructor(private readonly config: LiteLLMConfig) {}
 
   /** Nome do modelo configurado (para auditoria quando a chamada nem chega a responder). */
@@ -54,6 +39,7 @@ export class LiteLLMClient {
         { role: 'user', content: req.user },
       ],
       temperature: req.temperature ?? 0.2,
+      ...(req.maxTokens ? { max_tokens: req.maxTokens } : {}),
       ...(req.jsonMode ? { response_format: { type: 'json_object' } } : {}),
     };
 

@@ -14,6 +14,8 @@ import { DrizzleClassificationRepository } from '../modules/classification/infra
 import { DrizzleAuditRepository } from '../modules/classification/infrastructure/persistence/DrizzleAuditRepository.js';
 import { AuditLogger } from '../modules/classification/infrastructure/audit/AuditLogger.js';
 import { LiteLLMClient } from '../modules/classification/infrastructure/llm/LiteLLMClient.js';
+import { AnthropicClient } from '../modules/classification/infrastructure/llm/AnthropicClient.js';
+import type { LlmClient } from '../modules/classification/infrastructure/llm/LlmClient.js';
 import { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 
@@ -63,11 +65,20 @@ export function buildContainer() {
   ];
 
   // --- LLM + auditoria ---
-  const llm = new LiteLLMClient({
-    baseUrl: env.LITELLM_BASE_URL,
-    apiKey: env.LITELLM_API_KEY,
-    model: env.LITELLM_MODEL,
-  });
+  // Seleciona o provedor por env: Anthropic direto ou gateway LiteLLM.
+  const llm: LlmClient =
+    env.LLM_PROVIDER === 'anthropic'
+      ? new AnthropicClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL })
+      : new LiteLLMClient({
+          baseUrl: env.LITELLM_BASE_URL,
+          apiKey: env.LITELLM_API_KEY,
+          model: env.LITELLM_MODEL,
+        });
+  console.log(
+    `🧠 LLM provider: ${env.LLM_PROVIDER} (modelo: ${
+      env.LLM_PROVIDER === 'anthropic' ? env.ANTHROPIC_MODEL : env.LITELLM_MODEL
+    })`,
+  );
   const auditLogger = new AuditLogger(auditRepository, {
     enabled: env.LANGFUSE_ENABLED,
     publicKey: env.LANGFUSE_PUBLIC_KEY,

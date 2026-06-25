@@ -5,7 +5,7 @@ import type { ClassificationRepository } from '../../domain/repositories/Classif
 import { isImpact } from '../../domain/value-objects/Impact.js';
 import { RelevanceScore } from '../../domain/value-objects/RelevanceScore.js';
 import type { AuditLogger } from '../../infrastructure/audit/AuditLogger.js';
-import type { LiteLLMClient } from '../../infrastructure/llm/LiteLLMClient.js';
+import type { LlmClient } from '../../infrastructure/llm/LlmClient.js';
 import {
   CLASSIFICATION_PROMPT_VERSION,
   CLASSIFICATION_SYSTEM_PROMPT,
@@ -38,7 +38,7 @@ export class ClassifyArticlesUseCase {
   constructor(
     private readonly articleRepository: ArticleRepository,
     private readonly classificationRepository: ClassificationRepository,
-    private readonly llm: LiteLLMClient,
+    private readonly llm: LlmClient,
     private readonly audit: AuditLogger,
     private readonly batchSize: number,
   ) {}

@@ -14,6 +14,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.69.0",
     "@fastify/cors": "^9.0.1",
     "bullmq": "^5.12.0",
     "drizzle-orm": "^0.33.0",
