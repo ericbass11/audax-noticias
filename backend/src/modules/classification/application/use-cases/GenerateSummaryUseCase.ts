@@ -8,8 +8,10 @@ import {
 export interface GenerateSummaryResult {
   /** Texto final pronto para WhatsApp (PT-BR). */
   content: string;
-  /** Artigos selecionados (top N), em ordem de relevância. */
+  /** Artigos do WhatsApp (top N, capados), em ordem de relevância. */
   rankedArticleIds: string[];
+  /** TODAS as relevantes (acima do piso, sem teto) — conjunto do portal. */
+  relevantArticleIds: string[];
 }
 
 /**
@@ -49,13 +51,15 @@ export class GenerateSummaryUseCase {
 
     if (scored.length === 0) return null;
 
-    const top = this.builder.selectTop(scored);
+    const relevant = this.builder.selectRelevant(scored);
     // Nada acima do piso de relevância → sem resumo (não dispara nada).
-    if (top.length === 0) return null;
+    if (relevant.length === 0) return null;
 
+    const top = this.builder.selectTop(scored); // top N (teto) para o WhatsApp
     return {
       content: this.builder.buildMessage(top, this.webAppUrl),
       rankedArticleIds: top.map((s) => s.article.id!),
+      relevantArticleIds: relevant.map((s) => s.article.id!),
     };
   }
 }

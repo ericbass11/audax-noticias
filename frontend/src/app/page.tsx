@@ -24,8 +24,9 @@ export default async function PortalHome({
   let error: string | null = null;
   try {
     const res = await fetchNews({ date: todayInSaoPaulo(), category });
-    // Só notícias já classificadas entram no portal (têm leitura editorial).
-    items = res.items.filter((i) => i.impact);
+    // Só notícias com análise profunda entram no portal (curadoria das
+    // relevantes — não o balde inteiro da classificação).
+    items = res.items.filter((i) => i.hasAnalysis);
   } catch (e) {
     error = (e as Error).message;
   }

@@ -108,12 +108,12 @@ export class RunNewsCycleUseCase {
         };
       }
 
-      // 5. Conteúdo do PORTAL: análise profunda das MESMAS notícias que vão ao
-      // WhatsApp (lê o corpo do artigo). Roda antes do disparo para que, ao
-      // clicar no link, o portal já tenha a análise pronta. Tolerante a falha:
-      // um problema aqui não impede o envio do alerta.
+      // 5. Conteúdo do PORTAL: análise profunda de TODAS as relevantes (rel ≥
+      // piso) — não só as do WhatsApp —, lendo o corpo do artigo. Roda antes do
+      // disparo para o portal já estar pronto. Tolerante a falha: um problema
+      // aqui não impede o envio do alerta.
       try {
-        await this.analyze.execute(summary.rankedArticleIds);
+        await this.analyze.execute(summary.relevantArticleIds);
       } catch (err) {
         console.error('⚠️  Falha na análise profunda (portal):', (err as Error).message);
       }

@@ -51,15 +51,21 @@ export class ExecutiveSummaryBuilder {
   ) {}
 
   /**
-   * O que vai ao CEO (e ao portal): aplica o PISO de relevância e o TETO de
-   * itens (maiores relevâncias primeiro). Pode retornar lista vazia num dia
-   * sem nada relevante — nesse caso não há resumo a disparar.
+   * Relevantes: acima do piso, ordenadas por relevância (desc), SEM teto.
+   * É o conjunto do portal (análise profunda de cada uma).
    */
-  selectTop(scored: ScoredArticle[]): ScoredArticle[] {
+  selectRelevant(scored: ScoredArticle[]): ScoredArticle[] {
     return [...scored]
       .filter((s) => s.classification.relevance >= this.minRelevance)
-      .sort((a, b) => b.classification.relevance - a.classification.relevance)
-      .slice(0, this.maxItems);
+      .sort((a, b) => b.classification.relevance - a.classification.relevance);
+  }
+
+  /**
+   * O que vai ao CEO no WhatsApp: as relevantes, limitadas ao TETO de itens.
+   * Pode retornar lista vazia num dia sem nada relevante.
+   */
+  selectTop(scored: ScoredArticle[]): ScoredArticle[] {
+    return this.selectRelevant(scored).slice(0, this.maxItems);
   }
 
   /**

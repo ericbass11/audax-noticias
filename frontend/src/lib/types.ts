@@ -14,6 +14,7 @@ export interface NewsItem {
   relevance: number | null;
   category: string | null;
   justification: string | null;
+  hasAnalysis: boolean;
 }
 
 export interface NewsResponse {

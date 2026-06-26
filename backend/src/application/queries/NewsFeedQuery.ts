@@ -24,6 +24,8 @@ export interface NewsFeedItem {
   relevance: number | null;
   category: string | null;
   justification: string | null;
+  /** true se a notícia já tem análise profunda (conteúdo do portal). */
+  hasAnalysis: boolean;
 }
 
 /** Análise profunda (conteúdo do portal) anexada ao detalhe da notícia. */
@@ -62,6 +64,7 @@ export class NewsFeedQuery {
         relevance: classifications.relevance,
         category: classifications.category,
         justification: classifications.justification,
+        hasAnalysis: sql<boolean>`EXISTS (SELECT 1 FROM ${articleAnalyses} WHERE ${articleAnalyses.articleId} = ${newsArticles.id} AND ${articleAnalyses.isCurrent})`,
       })
       .from(newsArticles)
       .leftJoin(
@@ -118,6 +121,7 @@ export class NewsFeedQuery {
         relevance: classifications.relevance,
         category: classifications.category,
         justification: classifications.justification,
+        hasAnalysis: sql<boolean>`EXISTS (SELECT 1 FROM ${articleAnalyses} WHERE ${articleAnalyses.articleId} = ${newsArticles.id} AND ${articleAnalyses.isCurrent})`,
       })
       .from(newsArticles)
       .leftJoin(
