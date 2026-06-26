@@ -58,6 +58,16 @@ export class GenerateArticleAnalysisUseCase {
       const fetched = await this.contentFetcher.fetch(article.url);
       if (fetched.success) read += 1;
 
+      // Enriquece a imagem com a og:image real do artigo (mais precisa que o
+      // thumbnail genérico do agregador). Só para as notícias do portal.
+      if (fetched.image) {
+        try {
+          await this.articleRepository.updateImage(article.id!, fetched.image);
+        } catch (err) {
+          console.error('⚠️  Falha ao atualizar imagem:', (err as Error).message);
+        }
+      }
+
       const cls = classifications.get(article.id!);
       const userPrompt = buildAnalysisUserPrompt({
         title: article.title,

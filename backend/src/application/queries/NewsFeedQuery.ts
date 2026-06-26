@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Database } from '../../infrastructure/database/client.js';
-import { classifications, newsArticles } from '../../infrastructure/database/schema.js';
+import { articleAnalyses, classifications, newsArticles } from '../../infrastructure/database/schema.js';
 
 const SAO_PAULO = 'America/Sao_Paulo';
 
@@ -15,6 +15,7 @@ export interface NewsFeedItem {
   title: string;
   summary: string | null;
   url: string;
+  imageUrl: string | null;
   source: string;
   sourceType: string;
   publishedAt: string | null;
@@ -25,6 +26,18 @@ export interface NewsFeedItem {
   justification: string | null;
 }
 
+/** Análise profunda (conteúdo do portal) anexada ao detalhe da notícia. */
+export interface NewsAnalysis {
+  executiveSummary: string;
+  areas: Record<string, string>;
+  actions: string[];
+  sourceRead: boolean;
+}
+
+export interface NewsDetail extends NewsFeedItem {
+  analysis: NewsAnalysis | null;
+}
+
 /**
  * Projeção de leitura (CQRS) para o dashboard "Radar de Notícias".
  * Junta cada notícia com sua classificação vigente (is_current). Usa o banco
@@ -32,6 +45,53 @@ export interface NewsFeedItem {
  */
 export class NewsFeedQuery {
   constructor(private readonly db: Database) {}
+
+  /** Detalhe de UMA notícia (artigo + classificação + análise) para o portal. */
+  async detail(id: string): Promise<NewsDetail | null> {
+    const [base] = await this.db
+      .select({
+        id: newsArticles.id,
+        title: newsArticles.title,
+        summary: newsArticles.summary,
+        url: newsArticles.url,
+        imageUrl: newsArticles.imageUrl,
+        source: newsArticles.source,
+        sourceType: newsArticles.sourceType,
+        publishedAt: newsArticles.publishedAt,
+        impact: classifications.impact,
+        relevance: classifications.relevance,
+        category: classifications.category,
+        justification: classifications.justification,
+      })
+      .from(newsArticles)
+      .leftJoin(
+        classifications,
+        and(eq(classifications.articleId, newsArticles.id), eq(classifications.isCurrent, true)),
+      )
+      .where(eq(newsArticles.id, id))
+      .limit(1);
+
+    if (!base) return null;
+
+    const [analysisRow] = await this.db
+      .select()
+      .from(articleAnalyses)
+      .where(and(eq(articleAnalyses.articleId, id), eq(articleAnalyses.isCurrent, true)))
+      .limit(1);
+
+    return {
+      ...base,
+      publishedAt: base.publishedAt ? base.publishedAt.toISOString() : null,
+      analysis: analysisRow
+        ? {
+            executiveSummary: analysisRow.executiveSummary,
+            areas: (analysisRow.areas ?? {}) as Record<string, string>,
+            actions: (analysisRow.actions ?? []) as string[],
+            sourceRead: analysisRow.sourceRead,
+          }
+        : null,
+    };
+  }
 
   async list(filter: NewsFeedFilter): Promise<NewsFeedItem[]> {
     const conditions = [];
@@ -50,6 +110,7 @@ export class NewsFeedQuery {
         title: newsArticles.title,
         summary: newsArticles.summary,
         url: newsArticles.url,
+        imageUrl: newsArticles.imageUrl,
         source: newsArticles.source,
         sourceType: newsArticles.sourceType,
         publishedAt: newsArticles.publishedAt,

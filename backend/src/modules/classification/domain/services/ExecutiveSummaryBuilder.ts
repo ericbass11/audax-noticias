@@ -62,16 +62,22 @@ export class ExecutiveSummaryBuilder {
       .slice(0, this.maxItems);
   }
 
-  /** Monta o texto final (determinístico) a partir do top selecionado. */
-  buildMessage(top: ScoredArticle[]): string {
+  /**
+   * Monta o texto final (determinístico). O link de cada notícia aponta para o
+   * PORTAL da Audax (`webAppUrl/noticia/:id`) — onde está a análise por área e o
+   * link da fonte —, não direto para o veículo.
+   */
+  buildMessage(top: ScoredArticle[], webAppUrl: string): string {
+    const base = webAppUrl.replace(/\/+$/, '');
     const header = '*Audax Capital | Notícias — Agro & Crédito*';
-    // Cada notícia: impacto + categoria + título; data/hora (se houver); URL.
+    // Cada notícia: impacto + categoria + título; data/hora (se houver); link do portal.
     const blocks = top.map((s) => {
       const emoji = IMPACT_EMOJI[s.classification.impact];
       const cat = s.classification.category;
       const data = formatPublishedAtBR(s.article.publishedAt);
       const dateLine = data ? `🗓️ ${data}\n` : '';
-      return `${emoji} *${cat}* — ${s.article.title.trim()}\n${dateLine}${s.article.url}`;
+      const portalUrl = `${base}/noticia/${s.article.id}`;
+      return `${emoji} *${cat}* — ${s.article.title.trim()}\n${dateLine}${portalUrl}`;
     });
     return [header, '', blocks.join('\n\n')].join('\n');
   }

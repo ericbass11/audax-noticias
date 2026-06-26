@@ -10,6 +10,7 @@ export interface NormalizedArticleInput {
   sourceType: SourceType;
   rawCategory: string | null; // categoria_bruta da fonte
   publishedAt: Date | null; // data_publicacao
+  imageUrl: string | null; // imagem/thumbnail da notícia (quando a fonte fornece)
 }
 
 export interface ArticleProps extends NormalizedArticleInput {
@@ -33,6 +34,7 @@ export class Article {
   readonly sourceType: SourceType;
   readonly rawCategory: string | null;
   readonly publishedAt: Date | null;
+  readonly imageUrl: string | null;
   readonly contentHash: string;
   readonly collectedAt?: Date;
   readonly runId?: string | null;
@@ -46,6 +48,7 @@ export class Article {
     this.sourceType = props.sourceType;
     this.rawCategory = props.rawCategory;
     this.publishedAt = props.publishedAt;
+    this.imageUrl = props.imageUrl;
     this.contentHash = props.contentHash;
     this.collectedAt = props.collectedAt;
     this.runId = props.runId ?? null;

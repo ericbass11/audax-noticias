@@ -7,6 +7,8 @@ export interface FetchedContent {
   text: string | null;
   /** Tamanho do texto extraído. */
   chars: number;
+  /** Imagem real do artigo (og:image), quando disponível. */
+  image: string | null;
   /** Motivo da falha (paywall, timeout, conteúdo insuficiente...). */
   reason: string | null;
 }
@@ -39,24 +41,31 @@ export class ArticleContentFetcher {
 
   async fetch(url: string): Promise<FetchedContent> {
     if (this.isPaywalled(url)) {
-      return { success: false, text: null, chars: 0, reason: 'paywall' };
+      return { success: false, text: null, chars: 0, image: null, reason: 'paywall' };
     }
 
     try {
       const article = (await Promise.race([
         extract(url),
         this.timeout(),
-      ])) as { content?: string } | null;
+      ])) as { content?: string; image?: string } | null;
 
+      const image = this.cleanImage(article?.image);
       const text = this.htmlToText(article?.content ?? '');
       if (text.length < this.minChars) {
-        return { success: false, text: text || null, chars: text.length, reason: 'conteúdo insuficiente' };
+        return { success: false, text: text || null, chars: text.length, image, reason: 'conteúdo insuficiente' };
       }
       const capped = text.slice(0, this.maxChars);
-      return { success: true, text: capped, chars: capped.length, reason: null };
+      return { success: true, text: capped, chars: capped.length, image, reason: null };
     } catch (err) {
-      return { success: false, text: null, chars: 0, reason: (err as Error).message };
+      return { success: false, text: null, chars: 0, image: null, reason: (err as Error).message };
     }
+  }
+
+  /** Aceita só URLs http(s) absolutas como imagem. */
+  private cleanImage(image: string | undefined): string | null {
+    if (!image) return null;
+    return /^https?:\/\//i.test(image) ? image : null;
   }
 
   private isPaywalled(url: string): boolean {

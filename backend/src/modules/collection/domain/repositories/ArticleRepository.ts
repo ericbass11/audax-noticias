@@ -23,6 +23,9 @@ export interface ArticleRepository {
   /** Carrega múltiplos artigos por id (ex.: para (re)classificar um lote). */
   findByIds(ids: string[]): Promise<Article[]>;
 
+  /** Atualiza a imagem de um artigo (enriquecimento com a og:image real). */
+  updateImage(id: string, imageUrl: string): Promise<void>;
+
   /** Notícias para a interface/leitura, já com filtros opcionais. */
   list(filter: ArticleListFilter): Promise<Article[]>;
 }

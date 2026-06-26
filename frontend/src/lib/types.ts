@@ -6,6 +6,7 @@ export interface NewsItem {
   title: string;
   summary: string | null;
   url: string;
+  imageUrl: string | null;
   source: string;
   sourceType: string;
   publishedAt: string | null;
@@ -18,4 +19,17 @@ export interface NewsItem {
 export interface NewsResponse {
   items: NewsItem[];
   count: number;
+}
+
+/** Análise profunda por área (conteúdo do portal). */
+export interface NewsAnalysis {
+  executiveSummary: string;
+  areas: Partial<Record<'comercial' | 'cobranca' | 'operacoes' | 'risco' | 'compliance', string>>;
+  actions: string[];
+  sourceRead: boolean;
+}
+
+/** Detalhe da notícia: espelha GET /api/news/:id. */
+export interface NewsDetail extends NewsItem {
+  analysis: NewsAnalysis | null;
 }

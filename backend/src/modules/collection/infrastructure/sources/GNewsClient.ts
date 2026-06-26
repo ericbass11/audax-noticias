@@ -13,6 +13,7 @@ interface GNewsArticle {
   title: string;
   description: string | null;
   url: string;
+  image?: string;
   publishedAt: string;
   source?: { name?: string };
 }
@@ -81,6 +82,7 @@ export class GNewsClient implements NewsSource {
       sourceType: 'gnews' as const,
       rawCategory: query, // a query que trouxe a notícia serve de pista de categoria
       publishedAt: a.publishedAt ? new Date(a.publishedAt) : null,
+      imageUrl: a.image ?? null,
     }));
   }
 }

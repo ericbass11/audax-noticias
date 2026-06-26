@@ -26,6 +26,8 @@ export class GenerateSummaryUseCase {
   constructor(
     private readonly articleRepository: ArticleRepository,
     private readonly classificationRepository: ClassificationRepository,
+    /** URL base do portal (para o link de cada notícia no WhatsApp). */
+    private readonly webAppUrl: string,
     /** Piso de relevância p/ o resumo (gate do CEO). */
     minRelevance = 0,
     /** Teto de itens no resumo. */
@@ -52,7 +54,7 @@ export class GenerateSummaryUseCase {
     if (top.length === 0) return null;
 
     return {
-      content: this.builder.buildMessage(top),
+      content: this.builder.buildMessage(top, this.webAppUrl),
       rankedArticleIds: top.map((s) => s.article.id!),
     };
   }

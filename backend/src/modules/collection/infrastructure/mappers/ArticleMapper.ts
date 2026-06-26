@@ -14,6 +14,7 @@ export const ArticleMapper = {
       sourceType: row.sourceType as SourceType,
       rawCategory: row.rawCategory,
       publishedAt: row.publishedAt,
+      imageUrl: row.imageUrl,
       contentHash: row.contentHash,
       collectedAt: row.collectedAt,
       runId: row.runId,
@@ -30,6 +31,7 @@ export const ArticleMapper = {
       sourceType: article.sourceType,
       rawCategory: article.rawCategory,
       publishedAt: article.publishedAt,
+      imageUrl: article.imageUrl,
       runId: article.runId ?? null,
     };
   },

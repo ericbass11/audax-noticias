@@ -46,6 +46,10 @@ export class DrizzleArticleRepository implements ArticleRepository {
     return rows.map(ArticleMapper.toDomain);
   }
 
+  async updateImage(id: string, imageUrl: string): Promise<void> {
+    await this.db.update(newsArticles).set({ imageUrl }).where(eq(newsArticles.id, id));
+  }
+
   async list(filter: ArticleListFilter): Promise<Article[]> {
     const conditions = [];
     if (filter.date) {

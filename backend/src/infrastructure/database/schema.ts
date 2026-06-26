@@ -55,6 +55,7 @@ export const newsArticles = pgTable(
     contentHash: text('content_hash').notNull(),
     title: text('title').notNull(),
     summary: text('summary'),
+    imageUrl: text('image_url'),
     url: text('url').notNull(),
     source: text('source').notNull(),
     sourceType: text('source_type').notNull(), // 'gnews' | 'rss'

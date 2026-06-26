@@ -1,0 +1,5 @@
+# Evita copiar artefatos do host para a imagem (a imagem instala/compila do zero).
+node_modules
+dist
+.env
+*.log

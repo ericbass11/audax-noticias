@@ -1,4 +1,4 @@
-import type { NewsResponse } from './types';
+import type { NewsDetail, NewsResponse } from './types';
 
 /**
  * Cliente da API do backend. O frontend consome o mesmo Postgres VIA a API
@@ -18,6 +18,13 @@ export async function fetchNews(filters: NewsFilters): Promise<NewsResponse> {
 
   const res = await fetch(`${API_URL}/api/news?${params.toString()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`Falha ao carregar notícias (HTTP ${res.status}).`);
+  return res.json();
+}
+
+export async function fetchNewsDetail(id: string): Promise<NewsDetail | null> {
+  const res = await fetch(`${API_URL}/api/news/${id}`, { cache: 'no-store' });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Falha ao carregar notícia (HTTP ${res.status}).`);
   return res.json();
 }
 

@@ -52,6 +52,7 @@ export class RssClient implements NewsSource {
       sourceType: 'rss' as const,
       rawCategory: this.extractCategory(item.categories),
       publishedAt: item.isoDate ? new Date(item.isoDate) : null,
+      imageUrl: item.enclosure?.url ?? null,
     }));
   }
 

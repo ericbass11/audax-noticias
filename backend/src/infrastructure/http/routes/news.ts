@@ -15,6 +15,7 @@ const listQuerySchema = z.object({
  * Endpoints de leitura consumidos pelo dashboard (Next.js).
  *   GET /api/news            → feed com filtro por data/categoria
  *   GET /api/news/categories → categorias para o filtro
+ *   GET /api/news/:id        → detalhe + análise profunda (portal)
  */
 export async function newsRoutes(app: FastifyInstance, container: Container): Promise<void> {
   const { newsFeedQuery } = container.queries;
@@ -31,5 +32,18 @@ export async function newsRoutes(app: FastifyInstance, container: Container): Pr
   app.get('/api/news/categories', async () => {
     const categories = await newsFeedQuery.categories();
     return { categories };
+  });
+
+  // Detalhe de uma notícia (com a análise profunda) — consumido pelo portal.
+  app.get('/api/news/:id', async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
+    if (!params.success) {
+      return reply.status(400).send({ error: 'id inválido' });
+    }
+    const detail = await newsFeedQuery.detail(params.data.id);
+    if (!detail) {
+      return reply.status(404).send({ error: 'notícia não encontrada' });
+    }
+    return detail;
   });
 }

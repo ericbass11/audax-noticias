@@ -16,6 +16,8 @@ interface SerpApiNewsItem {
   date?: string;
   // O google_news também devolve uma data ISO limpa; preferimos esta.
   iso_date?: string;
+  thumbnail?: string;
+  thumbnail_small?: string;
   source?: { name?: string } | string;
   // O engine google_news às vezes agrupa resultados em "stories".
   stories?: SerpApiNewsItem[];
@@ -96,6 +98,7 @@ export class SerpApiClient implements NewsSource {
         rawCategory: query,
         // Prefere iso_date (ISO 8601 confiável); cai para `date` se ausente.
         publishedAt: this.parseDate(i.iso_date ?? i.date),
+        imageUrl: i.thumbnail ?? i.thumbnail_small ?? null,
       }));
   }
 
