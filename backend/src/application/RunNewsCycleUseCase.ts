@@ -1,6 +1,7 @@
 import type { CollectNewsUseCase } from '../modules/collection/application/use-cases/CollectNewsUseCase.js';
 import type { TriageArticlesUseCase } from '../modules/classification/application/use-cases/TriageArticlesUseCase.js';
 import type { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
+import type { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
 import type { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 import type { DispatchSummaryUseCase } from '../modules/notification/application/use-cases/DispatchSummaryUseCase.js';
 import { ExecutiveSummary } from '../modules/notification/domain/entities/ExecutiveSummary.js';
@@ -43,6 +44,7 @@ export class RunNewsCycleUseCase {
     private readonly triage: TriageArticlesUseCase,
     private readonly classify: ClassifyArticlesUseCase,
     private readonly generateSummary: GenerateSummaryUseCase,
+    private readonly analyze: GenerateArticleAnalysisUseCase,
     private readonly summaries: SummaryRepository,
     private readonly dispatch: DispatchSummaryUseCase,
   ) {}
@@ -106,7 +108,17 @@ export class RunNewsCycleUseCase {
         };
       }
 
-      // 5. PERSISTE o resumo antes de qualquer envio (idempotente por periodKey).
+      // 5. Conteúdo do PORTAL: análise profunda das MESMAS notícias que vão ao
+      // WhatsApp (lê o corpo do artigo). Roda antes do disparo para que, ao
+      // clicar no link, o portal já tenha a análise pronta. Tolerante a falha:
+      // um problema aqui não impede o envio do alerta.
+      try {
+        await this.analyze.execute(summary.rankedArticleIds);
+      } catch (err) {
+        console.error('⚠️  Falha na análise profunda (portal):', (err as Error).message);
+      }
+
+      // 6. PERSISTE o resumo antes de qualquer envio (idempotente por periodKey).
       const persisted = await this.summaries.save(
         new ExecutiveSummary({
           runId: run.id!,
@@ -121,7 +133,7 @@ export class RunNewsCycleUseCase {
 
       await this.runs.update(run);
 
-      // 6. Só então dispara no WhatsApp.
+      // 7. Só então dispara no WhatsApp.
       const dispatchResult = await this.dispatch.execute(persisted.id!);
 
       return {

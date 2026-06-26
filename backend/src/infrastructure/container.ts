@@ -11,7 +11,9 @@ import { CollectNewsUseCase } from '../modules/collection/application/use-cases/
 
 // Classification
 import { DrizzleClassificationRepository } from '../modules/classification/infrastructure/persistence/DrizzleClassificationRepository.js';
+import { DrizzleArticleAnalysisRepository } from '../modules/classification/infrastructure/persistence/DrizzleArticleAnalysisRepository.js';
 import { DrizzleAuditRepository } from '../modules/classification/infrastructure/persistence/DrizzleAuditRepository.js';
+import { ArticleContentFetcher } from '../modules/classification/infrastructure/content/ArticleContentFetcher.js';
 import { AuditLogger } from '../modules/classification/infrastructure/audit/AuditLogger.js';
 import { LiteLLMClient } from '../modules/classification/infrastructure/llm/LiteLLMClient.js';
 import { AnthropicClient } from '../modules/classification/infrastructure/llm/AnthropicClient.js';
@@ -19,6 +21,7 @@ import type { LlmClient } from '../modules/classification/infrastructure/llm/Llm
 import { TriageArticlesUseCase } from '../modules/classification/application/use-cases/TriageArticlesUseCase.js';
 import { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
+import { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
 
 // Notification
 import { DrizzleSummaryRepository } from '../modules/notification/infrastructure/persistence/DrizzleSummaryRepository.js';
@@ -41,6 +44,7 @@ export function buildContainer() {
   // --- Repositórios ---
   const articleRepository = new DrizzleArticleRepository(db);
   const classificationRepository = new DrizzleClassificationRepository(db);
+  const analysisRepository = new DrizzleArticleAnalysisRepository(db);
   const auditRepository = new DrizzleAuditRepository(db);
   const summaryRepository = new DrizzleSummaryRepository(db);
   const dispatchRepository = new DrizzleDispatchRepository(db);
@@ -132,6 +136,16 @@ export function buildContainer() {
     env.SUMMARY_MIN_RELEVANCE,
     env.SUMMARY_MAX_ITEMS,
   );
+  // Análise profunda (portal): lê o corpo do artigo e gera impacto por área.
+  const contentFetcher = new ArticleContentFetcher();
+  const generateArticleAnalysis = new GenerateArticleAnalysisUseCase(
+    articleRepository,
+    classificationRepository,
+    contentFetcher,
+    analysisRepository,
+    llm,
+    auditLogger,
+  );
   const dispatchSummary = new DispatchSummaryUseCase(
     summaryRepository,
     dispatchRepository,
@@ -146,6 +160,7 @@ export function buildContainer() {
     triageArticles,
     classifyArticles,
     generateSummary,
+    generateArticleAnalysis,
     summaryRepository,
     dispatchSummary,
   );
@@ -156,6 +171,7 @@ export function buildContainer() {
     repositories: {
       articleRepository,
       classificationRepository,
+      analysisRepository,
       summaryRepository,
       dispatchRepository,
       runRepository,

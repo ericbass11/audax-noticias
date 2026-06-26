@@ -36,6 +36,7 @@ export const processingRuns = pgTable('processing_runs', {
   counts: jsonb('counts').$type<{
     collected?: number;
     deduped?: number;
+    triaged?: number;
     classified?: number;
   }>(),
   error: text('error'),
@@ -91,6 +92,37 @@ export const classifications = pgTable(
   (table) => ({
     articleIdx: index('classifications_article_idx').on(table.articleId),
     currentIdx: index('classifications_current_idx').on(table.isCurrent),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// article_analyses — análise PROFUNDA por notícia (lendo o corpo do artigo).
+// Gera o conteúdo do PORTAL: resumo executivo + impacto por área da Audax +
+// ações sugeridas. Versionável (is_current) como as classificações.
+// `source_read` indica se conseguimos ler o texto completo (false = paywall/
+// falha, análise feita só com título/resumo).
+// ---------------------------------------------------------------------------
+export const articleAnalyses = pgTable(
+  'article_analyses',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    articleId: uuid('article_id')
+      .notNull()
+      .references(() => newsArticles.id, { onDelete: 'cascade' }),
+    sourceRead: boolean('source_read').notNull().default(false),
+    sourceChars: integer('source_chars'),
+    executiveSummary: text('executive_summary').notNull(),
+    // { comercial, cobranca, operacoes, risco, compliance }
+    areas: jsonb('areas').$type<Record<string, string>>().notNull(),
+    actions: jsonb('actions').$type<string[]>(),
+    model: text('model').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    isCurrent: boolean('is_current').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    articleIdx: index('article_analyses_article_idx').on(table.articleId),
+    currentIdx: index('article_analyses_current_idx').on(table.isCurrent),
   }),
 );
 
@@ -177,6 +209,7 @@ export const dispatches = pgTable(
 
 export type NewsArticleRow = typeof newsArticles.$inferSelect;
 export type ClassificationRow = typeof classifications.$inferSelect;
+export type ArticleAnalysisRow = typeof articleAnalyses.$inferSelect;
 export type ProcessingRunRow = typeof processingRuns.$inferSelect;
 export type ExecutiveSummaryRow = typeof executiveSummaries.$inferSelect;
 export type DispatchRow = typeof dispatches.$inferSelect;

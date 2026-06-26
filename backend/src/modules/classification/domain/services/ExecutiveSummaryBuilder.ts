@@ -51,7 +51,7 @@ export class ExecutiveSummaryBuilder {
   ) {}
 
   /**
-   * Seleciona o que vai ao CEO: aplica o PISO de relevância e então o TETO de
+   * O que vai ao CEO (e ao portal): aplica o PISO de relevância e o TETO de
    * itens (maiores relevâncias primeiro). Pode retornar lista vazia num dia
    * sem nada relevante — nesse caso não há resumo a disparar.
    */
