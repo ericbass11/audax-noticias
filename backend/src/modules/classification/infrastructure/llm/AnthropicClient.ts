@@ -1,5 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { CompletionRequest, CompletionResult, LlmClient } from './LlmClient.js';
+import type {
+  ChatLlmClient,
+  ChatMessage,
+  CompletionRequest,
+  CompletionResult,
+  LlmClient,
+} from './LlmClient.js';
 
 export interface AnthropicConfig {
   apiKey: string;
@@ -15,7 +21,7 @@ export interface AnthropicConfig {
  * - JSON é garantido pelo prompt (que exige "somente JSON") + parse defensivo
  *   no use case; não usamos structured outputs aqui para manter simples.
  */
-export class AnthropicClient implements LlmClient {
+export class AnthropicClient implements LlmClient, ChatLlmClient {
   private readonly client: Anthropic;
 
   constructor(private readonly config: AnthropicConfig) {
@@ -54,5 +60,24 @@ export class AnthropicClient implements LlmClient {
       tokensOutput: message.usage?.output_tokens ?? null,
       raw: message,
     };
+  }
+
+  /** Chat com streaming: emite cada trecho de texto via onToken. */
+  async streamChat(
+    system: string,
+    messages: ChatMessage[],
+    onToken: (text: string) => void,
+  ): Promise<void> {
+    if (!this.config.apiKey) {
+      throw new Error('ANTHROPIC_API_KEY ausente — não é possível conversar.');
+    }
+    const stream = this.client.messages.stream({
+      model: this.config.model,
+      max_tokens: 1024,
+      system,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    });
+    stream.on('text', (text) => onToken(text));
+    await stream.finalMessage();
   }
 }

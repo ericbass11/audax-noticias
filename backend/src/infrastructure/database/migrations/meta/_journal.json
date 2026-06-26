@@ -22,6 +22,13 @@
       "when": 1750000002000,
       "tag": "0002_article_image",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1750000003000,
+      "tag": "0003_analysis_source_text",
+      "breakpoints": true
     }
   ]
 }

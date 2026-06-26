@@ -26,3 +26,18 @@ export interface LlmClient {
   readonly model: string;
   complete(req: CompletionRequest): Promise<CompletionResult>;
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/** Cliente de chat com streaming (token a token), para o chat do portal. */
+export interface ChatLlmClient {
+  readonly model: string;
+  streamChat(
+    system: string,
+    messages: ChatMessage[],
+    onToken: (text: string) => void,
+  ): Promise<void>;
+}

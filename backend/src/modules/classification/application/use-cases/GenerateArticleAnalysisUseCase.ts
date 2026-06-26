@@ -105,6 +105,7 @@ export class GenerateArticleAnalysisUseCase {
             articleId: article.id!,
             sourceRead: fetched.success,
             sourceChars: fetched.chars,
+            sourceText: fetched.text,
             executiveSummary:
               typeof parsed.resumo_executivo === 'string' ? parsed.resumo_executivo : '',
             areas: this.normalizeAreas(parsed.areas),

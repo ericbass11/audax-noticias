@@ -13,6 +13,8 @@ export interface ArticleAnalysisProps {
   /** true se a análise leu o corpo do artigo; false = só título/resumo. */
   sourceRead: boolean;
   sourceChars?: number | null;
+  /** Corpo extraído do artigo (para embasar o chat); null se não lido. */
+  sourceText?: string | null;
   executiveSummary: string;
   areas: ArticleAnalysisAreas;
   actions: string[];
@@ -32,6 +34,7 @@ export class ArticleAnalysis {
   readonly articleId: string;
   readonly sourceRead: boolean;
   readonly sourceChars: number | null;
+  readonly sourceText: string | null;
   readonly executiveSummary: string;
   readonly areas: ArticleAnalysisAreas;
   readonly actions: string[];
@@ -45,6 +48,7 @@ export class ArticleAnalysis {
     this.articleId = props.articleId;
     this.sourceRead = props.sourceRead;
     this.sourceChars = props.sourceChars ?? null;
+    this.sourceText = props.sourceText ?? null;
     this.executiveSummary = props.executiveSummary;
     this.areas = props.areas;
     this.actions = props.actions;

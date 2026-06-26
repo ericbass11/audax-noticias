@@ -112,6 +112,7 @@ export const articleAnalyses = pgTable(
       .references(() => newsArticles.id, { onDelete: 'cascade' }),
     sourceRead: boolean('source_read').notNull().default(false),
     sourceChars: integer('source_chars'),
+    sourceText: text('source_text'),
     executiveSummary: text('executive_summary').notNull(),
     // { comercial, cobranca, operacoes, risco, compliance }
     areas: jsonb('areas').$type<Record<string, string>>().notNull(),

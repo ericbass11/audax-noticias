@@ -14,6 +14,7 @@ import {
 import { fetchNewsDetail } from '@/lib/api';
 import { IMPACT_META, formatDateBR } from '@/lib/portal';
 import { cn } from '@/lib/utils';
+import { NewsChat } from '@/components/portal/NewsChat';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,6 +154,8 @@ export default async function NoticiaPage({ params }: { params: { id: string } }
           </a>
           <p className="mt-2 text-xs text-muted-foreground">{item.source}</p>
         </div>
+
+        <NewsChat id={item.id} />
       </article>
     </main>
   );

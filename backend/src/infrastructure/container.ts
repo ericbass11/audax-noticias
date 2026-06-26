@@ -22,6 +22,7 @@ import { TriageArticlesUseCase } from '../modules/classification/application/use
 import { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 import { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
+import { AnswerNewsChatUseCase } from '../modules/classification/application/use-cases/AnswerNewsChatUseCase.js';
 
 // Notification
 import { DrizzleSummaryRepository } from '../modules/notification/infrastructure/persistence/DrizzleSummaryRepository.js';
@@ -147,6 +148,14 @@ export function buildContainer() {
     llm,
     auditLogger,
   );
+  // Chat do portal (streaming) — sempre via Anthropic direto.
+  const chatLlm = new AnthropicClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL });
+  const answerNewsChat = new AnswerNewsChatUseCase(
+    articleRepository,
+    classificationRepository,
+    analysisRepository,
+    chatLlm,
+  );
   const dispatchSummary = new DispatchSummaryUseCase(
     summaryRepository,
     dispatchRepository,
@@ -178,7 +187,7 @@ export function buildContainer() {
       runRepository,
     },
     queries: { newsFeedQuery },
-    useCases: { runNewsCycle, resendSummary, dispatchSummary },
+    useCases: { runNewsCycle, resendSummary, dispatchSummary, answerNewsChat },
   };
 }
 
