@@ -129,9 +129,6 @@ export function buildContainer() {
   const generateSummary = new GenerateSummaryUseCase(
     articleRepository,
     classificationRepository,
-    llm,
-    auditLogger,
-    env.WEB_APP_URL,
     env.SUMMARY_MIN_RELEVANCE,
     env.SUMMARY_MAX_ITEMS,
   );

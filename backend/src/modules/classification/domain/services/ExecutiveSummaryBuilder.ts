@@ -8,18 +8,37 @@ export interface ScoredArticle {
 }
 
 const IMPACT_EMOJI: Record<Impact, string> = {
-  positivo: '🟢',
-  negativo: '🔴',
-  neutro: '⚪',
+  positivo: '✅',
+  negativo: '⚠️',
+  neutro: '▪️',
 };
+
+/** Data/hora de publicação em horário de Brasília (DD/MM/AAAA HH:MM) ou null. */
+export function formatPublishedAtBR(date: Date | null): string | null {
+  if (!date) return null;
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+      .format(date)
+      .replace(',', '');
+  } catch {
+    return null;
+  }
+}
 
 /**
  * ExecutiveSummaryBuilder — serviço de domínio puro.
  *
- * Seleciona as 3-5 notícias de maior relevância do lote e produz um texto
- * determinístico pronto para WhatsApp (PT-BR, curto, uma linha por notícia,
- * emojis discretos de sinalização). Serve como fallback caso a geração via
- * LLM falhe, garantindo que SEMPRE haja um resumo para disparar.
+ * Seleciona as notícias de maior relevância (acima do piso) e monta a mensagem
+ * determinística para WhatsApp (PT-BR): título ORIGINAL da fonte, categoria,
+ * emoji de impacto, data de publicação e URL. É a fonte ÚNICA do texto enviado
+ * — não passamos pelo LLM, para não reescrever os títulos reais.
  */
 export class ExecutiveSummaryBuilder {
   /**
@@ -43,15 +62,17 @@ export class ExecutiveSummaryBuilder {
       .slice(0, this.maxItems);
   }
 
-  /** Texto determinístico (fallback) a partir do top selecionado. */
-  buildFallbackText(top: ScoredArticle[], webAppUrl: string): string {
-    const header = '📊 *Radar de Notícias Audax* — resumo executivo';
-    const lines = top.map((s) => {
+  /** Monta o texto final (determinístico) a partir do top selecionado. */
+  buildMessage(top: ScoredArticle[]): string {
+    const header = '*Audax Capital | Notícias — Agro & Crédito*';
+    // Cada notícia: impacto + categoria + título; data/hora (se houver); URL.
+    const blocks = top.map((s) => {
       const emoji = IMPACT_EMOJI[s.classification.impact];
-      const rel = s.classification.relevance;
-      return `${emoji} *(${rel})* ${s.article.title.trim()}`;
+      const cat = s.classification.category;
+      const data = formatPublishedAtBR(s.article.publishedAt);
+      const dateLine = data ? `🗓️ ${data}\n` : '';
+      return `${emoji} *${cat}* — ${s.article.title.trim()}\n${dateLine}${s.article.url}`;
     });
-    const footer = `\n🔗 Análise completa: ${webAppUrl}`;
-    return [header, '', ...lines, footer].join('\n');
+    return [header, '', blocks.join('\n\n')].join('\n');
   }
 }

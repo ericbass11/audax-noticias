@@ -45,6 +45,8 @@ services:
       # Fala com o LiteLLM que roda NA SUA MÁQUINA (fora do compose), na porta
       # 4000. LITELLM_API_KEY vem do .env (virtual key emitida pelo gateway).
       LITELLM_BASE_URL: http://host.docker.internal:4000
+      # Evolution API roda no mesmo compose; alcança pelo nome do serviço.
+      EVOLUTION_BASE_URL: http://evolution_api:8080
     extra_hosts:
       # Garante a resolução de host.docker.internal (necessário no Linux;
       # no Docker Desktop Win/Mac já funciona, e isto não atrapalha).
@@ -59,6 +61,50 @@ services:
     # Aplica migrations e sobe a API. Cron e workers rodam embutidos no serviço.
     command: sh -c "pnpm db:migrate && node dist/main.js"
 
+  # ----------------------------------------------------------------------------
+  # Evolution API (WhatsApp). Reaproveita o Postgres (banco 'evolution') e o
+  # Redis (DB 1) do compose. A chave global (AUTHENTICATION_API_KEY) é a mesma
+  # usada pelo backend em EVOLUTION_API_KEY no .env.
+  # ----------------------------------------------------------------------------
+  evolution_api:
+    image: atendai/evolution-api:v2.2.3
+    container_name: audax-evolution
+    restart: unless-stopped
+    environment:
+      # URL pública (host) — usada para gerar QR code e webhooks.
+      SERVER_URL: http://localhost:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "false"
+      # Versão do WhatsApp Web. A embutida na v2.2.3 está desatualizada e o
+      # Baileys entra em loop sem gerar QR; fixamos uma versão atual.
+      CONFIG_SESSION_PHONE_VERSION: 2.3000.1035194821
+      # Banco de dados (Postgres do compose, banco dedicado 'evolution').
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://audax:audax@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      # Cache (Redis do compose, DB 1 para não colidir com a fila do backend).
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/1
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+      CACHE_LOCAL_ENABLED: "false"
+    volumes:
+      - evolution-instances:/evolution/instances
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   redis-data:
+  evolution-instances:
