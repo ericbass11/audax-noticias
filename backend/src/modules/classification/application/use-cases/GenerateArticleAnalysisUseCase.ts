@@ -9,6 +9,7 @@ import type { LlmClient } from '../../infrastructure/llm/LlmClient.js';
 import {
   ANALYSIS_PROMPT_VERSION,
   ANALYSIS_SYSTEM_PROMPT,
+  ANALYSIS_WATCHLIST_SYSTEM_PROMPT,
   buildAnalysisUserPrompt,
 } from '../../infrastructure/llm/prompts/analysisPrompt.js';
 
@@ -45,9 +46,15 @@ export class GenerateArticleAnalysisUseCase {
     private readonly audit: AuditLogger,
   ) {}
 
-  async execute(articleIds: string[]): Promise<GenerateArticleAnalysisResult> {
+  async execute(
+    articleIds: string[],
+    opts: { watchlist?: boolean } = {},
+  ): Promise<GenerateArticleAnalysisResult> {
     if (articleIds.length === 0) return { analyzed: 0, read: 0 };
 
+    const systemPrompt = opts.watchlist
+      ? ANALYSIS_WATCHLIST_SYSTEM_PROMPT
+      : ANALYSIS_SYSTEM_PROMPT;
     const articles = await this.articleRepository.findByIds(articleIds);
     const classifications = await this.classificationRepository.findCurrentByArticleIds(articleIds);
 
@@ -80,7 +87,7 @@ export class GenerateArticleAnalysisUseCase {
 
       try {
         const completion = await this.llm.complete({
-          system: ANALYSIS_SYSTEM_PROMPT,
+          system: systemPrompt,
           user: userPrompt,
           jsonMode: true,
         });

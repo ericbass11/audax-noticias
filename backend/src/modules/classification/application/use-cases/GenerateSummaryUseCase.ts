@@ -3,6 +3,7 @@ import type { ClassificationRepository } from '../../domain/repositories/Classif
 import {
   ExecutiveSummaryBuilder,
   type ScoredArticle,
+  type WatchlistMessageItem,
 } from '../../domain/services/ExecutiveSummaryBuilder.js';
 
 export interface GenerateSummaryResult {
@@ -38,7 +39,10 @@ export class GenerateSummaryUseCase {
     this.builder = new ExecutiveSummaryBuilder(minRelevance, maxItems);
   }
 
-  async execute(articleIds: string[]): Promise<GenerateSummaryResult | null> {
+  async execute(
+    articleIds: string[],
+    watchlistIds: string[] = [],
+  ): Promise<GenerateSummaryResult | null> {
     const articles = await this.articleRepository.findByIds(articleIds);
     const classifications = await this.classificationRepository.findCurrentByArticleIds(articleIds);
 
@@ -49,15 +53,22 @@ export class GenerateSummaryUseCase {
       })
       .filter((s): s is ScoredArticle => s !== null);
 
-    if (scored.length === 0) return null;
+    const relevant = scored.length ? this.builder.selectRelevant(scored) : [];
+    const top = scored.length ? this.builder.selectTop(scored) : [];
 
-    const relevant = this.builder.selectRelevant(scored);
-    // Nada acima do piso de relevância → sem resumo (não dispara nada).
-    if (relevant.length === 0) return null;
+    // Itens da rota de vigilância (ANVISA) para o bloco de alertas.
+    const watchlistArticles = await this.articleRepository.findByIds(watchlistIds);
+    const watchlist: WatchlistMessageItem[] = watchlistArticles.map((a) => ({
+      id: a.id!,
+      title: a.title,
+      publishedAt: a.publishedAt,
+    }));
 
-    const top = this.builder.selectTop(scored); // top N (teto) para o WhatsApp
+    // Sem nada relevante E sem alertas de vigilância → não dispara nada.
+    if (relevant.length === 0 && watchlist.length === 0) return null;
+
     return {
-      content: this.builder.buildMessage(top, this.webAppUrl),
+      content: this.builder.buildMessage(top, this.webAppUrl, watchlist),
       rankedArticleIds: top.map((s) => s.article.id!),
       relevantArticleIds: relevant.map((s) => s.article.id!),
     };

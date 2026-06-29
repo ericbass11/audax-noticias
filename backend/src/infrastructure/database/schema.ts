@@ -58,7 +58,8 @@ export const newsArticles = pgTable(
     imageUrl: text('image_url'),
     url: text('url').notNull(),
     source: text('source').notNull(),
-    sourceType: text('source_type').notNull(), // 'gnews' | 'rss'
+    sourceType: text('source_type').notNull(), // 'gnews' | 'rss' | 'serpapi'
+    track: text('track').notNull().default('news'), // 'news' | 'watchlist'
     rawCategory: text('raw_category'),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     collectedAt: timestamp('collected_at', { withTimezone: true }).notNull().defaultNow(),

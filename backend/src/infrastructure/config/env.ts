@@ -50,6 +50,14 @@ const envSchema = z.object({
   SERPAPI_HL: z.string().default('pt-br'),
   SERPAPI_QUERIES: z.string().default(''),
 
+  // Vigilância regulatória (ex.: produtos proibidos pela ANVISA). Rota própria:
+  // janela ampla, pula a triagem agro e sempre entra no portal/alertas.
+  WATCHLIST_QUERIES: z.string().default(''),
+  WATCHLIST_MAX_AGE_DAYS: z.coerce.number().default(30),
+  // Teto de itens da watchlist por ciclo (os mais recentes) — controla custo
+  // de análise e o volume do portal, já que a rota não passa pela triagem.
+  WATCHLIST_MAX_ITEMS: z.coerce.number().default(20),
+
   // Provedor de LLM: 'anthropic' chama o Claude direto; 'litellm' usa o gateway.
   LLM_PROVIDER: z.enum(['anthropic', 'litellm']).default('litellm'),
 
@@ -112,6 +120,7 @@ export const env = {
   gnewsQueries: csv(raw.GNEWS_QUERIES),
   rssFeeds: csv(raw.RSS_FEEDS),
   serpapiQueries: csv(raw.SERPAPI_QUERIES),
+  watchlistQueries: csv(raw.WATCHLIST_QUERIES),
   evolutionRecipients: csv(raw.EVOLUTION_RECIPIENTS),
   isProduction: raw.NODE_ENV === 'production',
 };

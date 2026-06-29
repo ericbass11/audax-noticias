@@ -7,6 +7,13 @@ export interface ScoredArticle {
   classification: Classification;
 }
 
+/** Item da rota de vigilância (ANVISA) para o bloco de alertas. */
+export interface WatchlistMessageItem {
+  id: string;
+  title: string;
+  publishedAt: Date | null;
+}
+
 const IMPACT_EMOJI: Record<Impact, string> = {
   positivo: '✅',
   negativo: '⚠️',
@@ -73,18 +80,38 @@ export class ExecutiveSummaryBuilder {
    * PORTAL da Audax (`webAppUrl/noticia/:id`) — onde está a análise por área e o
    * link da fonte —, não direto para o veículo.
    */
-  buildMessage(top: ScoredArticle[], webAppUrl: string): string {
+  buildMessage(
+    top: ScoredArticle[],
+    webAppUrl: string,
+    watchlist: WatchlistMessageItem[] = [],
+  ): string {
     const base = webAppUrl.replace(/\/+$/, '');
     const header = '*Audax Capital | Notícias — Agro & Crédito*';
-    // Cada notícia: impacto + categoria + título; data/hora (se houver); link do portal.
-    const blocks = top.map((s) => {
-      const emoji = IMPACT_EMOJI[s.classification.impact];
-      const cat = s.classification.category;
-      const data = formatPublishedAtBR(s.article.publishedAt);
-      const dateLine = data ? `🗓️ ${data}\n` : '';
-      const portalUrl = `${base}/noticia/${s.article.id}`;
-      return `${emoji} *${cat}* — ${s.article.title.trim()}\n${dateLine}${portalUrl}`;
-    });
-    return [header, '', blocks.join('\n\n')].join('\n');
+    const sections: string[] = [header];
+
+    // Seção de notícias: impacto + categoria + título; data/hora; link do portal.
+    if (top.length > 0) {
+      const blocks = top.map((s) => {
+        const emoji = IMPACT_EMOJI[s.classification.impact];
+        const cat = s.classification.category;
+        const data = formatPublishedAtBR(s.article.publishedAt);
+        const dateLine = data ? `🗓️ ${data}\n` : '';
+        const portalUrl = `${base}/noticia/${s.article.id}`;
+        return `${emoji} *${cat}* — ${s.article.title.trim()}\n${dateLine}${portalUrl}`;
+      });
+      sections.push(blocks.join('\n\n'));
+    }
+
+    // Bloco de vigilância regulatória (ANVISA) — destacado.
+    if (watchlist.length > 0) {
+      const items = watchlist.map((w) => {
+        const data = formatPublishedAtBR(w.publishedAt);
+        const dateLine = data ? `🗓️ ${data}\n` : '';
+        return `⛔ ${w.title.trim()}\n${dateLine}${base}/noticia/${w.id}`;
+      });
+      sections.push(['*⚠️ Alertas regulatórios (ANVISA)*', items.join('\n\n')].join('\n'));
+    }
+
+    return sections.join('\n\n');
   }
 }

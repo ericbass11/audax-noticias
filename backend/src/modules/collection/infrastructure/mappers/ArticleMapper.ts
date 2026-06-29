@@ -1,4 +1,4 @@
-import { Article } from '../../domain/entities/Article.js';
+import { Article, type ArticleTrack } from '../../domain/entities/Article.js';
 import type { SourceType } from '../../domain/value-objects/ArticleSource.js';
 import type { NewsArticleRow } from '../../../../infrastructure/database/schema.js';
 
@@ -12,6 +12,7 @@ export const ArticleMapper = {
       url: row.url,
       source: row.source,
       sourceType: row.sourceType as SourceType,
+      track: row.track as ArticleTrack,
       rawCategory: row.rawCategory,
       publishedAt: row.publishedAt,
       imageUrl: row.imageUrl,
@@ -29,6 +30,7 @@ export const ArticleMapper = {
       url: article.url,
       source: article.source,
       sourceType: article.sourceType,
+      track: article.track,
       rawCategory: article.rawCategory,
       publishedAt: article.publishedAt,
       imageUrl: article.imageUrl,

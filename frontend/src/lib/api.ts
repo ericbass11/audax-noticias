@@ -9,12 +9,16 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333';
 export interface NewsFilters {
   date?: string;
   category?: string;
+  track?: 'news' | 'watchlist';
+  limit?: number;
 }
 
 export async function fetchNews(filters: NewsFilters): Promise<NewsResponse> {
   const params = new URLSearchParams();
   if (filters.date) params.set('date', filters.date);
   if (filters.category) params.set('category', filters.category);
+  if (filters.track) params.set('track', filters.track);
+  if (filters.limit) params.set('limit', String(filters.limit));
 
   const res = await fetch(`${API_URL}/api/news?${params.toString()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`Falha ao carregar notícias (HTTP ${res.status}).`);

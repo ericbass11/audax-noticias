@@ -57,17 +57,14 @@ export class RunNewsCycleUseCase {
     }
 
     try {
-      // 1. Coleta + dedup + persistência das notícias novas.
+      // 1. Coleta em duas trilhas: 'news' (janela curta) e 'watchlist' (ampla,
+      // ex.: ANVISA).
       const collection = await this.collect.execute(run.id!);
+      const watchlistIds = collection.watchlistArticleIds;
 
-      // Sem notícias novas → conclui o turno sem triagem/classificação.
-      if (collection.savedArticleIds.length === 0) {
-        run.complete({
-          collected: collection.collected,
-          deduped: 0,
-          triaged: 0,
-          classified: 0,
-        });
+      // Nada novo em nenhuma trilha → conclui o turno.
+      if (collection.savedArticleIds.length === 0 && watchlistIds.length === 0) {
+        run.complete({ collected: collection.collected, deduped: 0, triaged: 0, classified: 0 });
         await this.runs.update(run);
         return {
           periodKey: input.periodKey,
@@ -80,21 +77,32 @@ export class RunNewsCycleUseCase {
         };
       }
 
-      // 2. Triagem barata (modelo leve): corta o volume ANTES da classificação
-      // cara. Só os títulos promissores seguem para o modelo de classificação.
-      const triage = await this.triage.execute(collection.savedArticleIds);
-
-      // 3. Classificação profunda só dos sobreviventes da triagem.
-      const classification = await this.classify.execute(triage.survivorIds);
+      // 2. + 3. Triagem e classificação — só a trilha 'news'.
+      let survivorIds: string[] = [];
+      let classified = 0;
+      if (collection.savedArticleIds.length > 0) {
+        const triage = await this.triage.execute(collection.savedArticleIds);
+        survivorIds = triage.survivorIds;
+        classified = (await this.classify.execute(survivorIds)).classified;
+      }
       run.complete({
         collected: collection.collected,
         deduped: collection.deduped,
-        triaged: triage.survivorIds.length,
-        classified: classification.classified,
+        triaged: survivorIds.length,
+        classified,
       });
 
-      // 4. Resumo executivo consolidado (aplica o piso de relevância do CEO).
-      const summary = await this.generateSummary.execute(triage.survivorIds);
+      // 4. Vigilância (ANVISA): pula a triagem; análise focada em NFe/recebível.
+      if (watchlistIds.length > 0) {
+        try {
+          await this.analyze.execute(watchlistIds, { watchlist: true });
+        } catch (err) {
+          console.error('⚠️  Falha na análise de vigilância (ANVISA):', (err as Error).message);
+        }
+      }
+
+      // 5. Resumo executivo: notícias relevantes + bloco de alertas ANVISA.
+      const summary = await this.generateSummary.execute(survivorIds, watchlistIds);
       if (!summary) {
         await this.runs.update(run);
         return {
@@ -102,23 +110,20 @@ export class RunNewsCycleUseCase {
           status: 'completed',
           collected: collection.collected,
           deduped: collection.deduped,
-          triaged: triage.survivorIds.length,
-          classified: classification.classified,
+          triaged: survivorIds.length,
+          classified,
           reason: 'sem itens acima do piso de relevância',
         };
       }
 
-      // 5. Conteúdo do PORTAL: análise profunda de TODAS as relevantes (rel ≥
-      // piso) — não só as do WhatsApp —, lendo o corpo do artigo. Roda antes do
-      // disparo para o portal já estar pronto. Tolerante a falha: um problema
-      // aqui não impede o envio do alerta.
+      // 6. Análise profunda das relevantes (portal). Tolerante a falha.
       try {
         await this.analyze.execute(summary.relevantArticleIds);
       } catch (err) {
         console.error('⚠️  Falha na análise profunda (portal):', (err as Error).message);
       }
 
-      // 6. PERSISTE o resumo antes de qualquer envio (idempotente por periodKey).
+      // 7. PERSISTE o resumo antes de qualquer envio (idempotente por periodKey).
       const persisted = await this.summaries.save(
         new ExecutiveSummary({
           runId: run.id!,
@@ -133,7 +138,7 @@ export class RunNewsCycleUseCase {
 
       await this.runs.update(run);
 
-      // 7. Só então dispara no WhatsApp.
+      // 8. Só então dispara no WhatsApp.
       const dispatchResult = await this.dispatch.execute(persisted.id!);
 
       return {
@@ -141,8 +146,8 @@ export class RunNewsCycleUseCase {
         status: 'completed',
         collected: collection.collected,
         deduped: collection.deduped,
-        triaged: triage.survivorIds.length,
-        classified: classification.classified,
+        triaged: survivorIds.length,
+        classified,
         summaryId: persisted.id,
         dispatch: {
           sent: dispatchResult.sent,

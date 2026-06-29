@@ -7,6 +7,7 @@ const SAO_PAULO = 'America/Sao_Paulo';
 export interface NewsFeedFilter {
   date?: string; // YYYY-MM-DD (por published_at em BRT)
   category?: string; // categoria atribuída pelo LLM
+  track?: string; // 'news' | 'watchlist'
   limit?: number;
 }
 
@@ -18,6 +19,7 @@ export interface NewsFeedItem {
   imageUrl: string | null;
   source: string;
   sourceType: string;
+  track: string; // 'news' | 'watchlist'
   publishedAt: string | null;
   // Campos da classificação vigente (podem ser null se ainda não classificada).
   impact: string | null;
@@ -59,6 +61,7 @@ export class NewsFeedQuery {
         imageUrl: newsArticles.imageUrl,
         source: newsArticles.source,
         sourceType: newsArticles.sourceType,
+        track: newsArticles.track,
         publishedAt: newsArticles.publishedAt,
         impact: classifications.impact,
         relevance: classifications.relevance,
@@ -106,6 +109,9 @@ export class NewsFeedQuery {
     if (filter.category) {
       conditions.push(eq(classifications.category, filter.category));
     }
+    if (filter.track) {
+      conditions.push(eq(newsArticles.track, filter.track));
+    }
 
     const rows = await this.db
       .select({
@@ -116,6 +122,7 @@ export class NewsFeedQuery {
         imageUrl: newsArticles.imageUrl,
         source: newsArticles.source,
         sourceType: newsArticles.sourceType,
+        track: newsArticles.track,
         publishedAt: newsArticles.publishedAt,
         impact: classifications.impact,
         relevance: classifications.relevance,

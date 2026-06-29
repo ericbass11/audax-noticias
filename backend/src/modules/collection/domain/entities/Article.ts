@@ -13,9 +13,13 @@ export interface NormalizedArticleInput {
   imageUrl: string | null; // imagem/thumbnail da notícia (quando a fonte fornece)
 }
 
+/** Trilha de coleta: fluxo normal ou vigilância regulatória. */
+export type ArticleTrack = 'news' | 'watchlist';
+
 export interface ArticleProps extends NormalizedArticleInput {
   id?: string;
   contentHash: string;
+  track?: ArticleTrack;
   collectedAt?: Date;
   runId?: string | null;
 }
@@ -35,6 +39,7 @@ export class Article {
   readonly rawCategory: string | null;
   readonly publishedAt: Date | null;
   readonly imageUrl: string | null;
+  readonly track: ArticleTrack;
   readonly contentHash: string;
   readonly collectedAt?: Date;
   readonly runId?: string | null;
@@ -49,15 +54,20 @@ export class Article {
     this.rawCategory = props.rawCategory;
     this.publishedAt = props.publishedAt;
     this.imageUrl = props.imageUrl;
+    this.track = props.track ?? 'news';
     this.contentHash = props.contentHash;
     this.collectedAt = props.collectedAt;
     this.runId = props.runId ?? null;
   }
 
   /** Cria a partir de dados normalizados, derivando o hash de deduplicação. */
-  static fromNormalized(input: NormalizedArticleInput, runId?: string | null): Article {
+  static fromNormalized(
+    input: NormalizedArticleInput,
+    runId?: string | null,
+    track: ArticleTrack = 'news',
+  ): Article {
     const hash = ContentHash.fromTitleAndUrl(input.title, input.url);
-    return new Article({ ...input, contentHash: hash.value, runId });
+    return new Article({ ...input, contentHash: hash.value, runId, track });
   }
 
   /** Reidrata uma entidade já persistida (usado pelo repositório). */

@@ -70,6 +70,17 @@ export function buildContainer() {
     new RssClient(env.rssFeeds),
   ];
 
+  // Rota de vigilância regulatória (ex.: ANVISA) — só SerpAPI, queries próprias.
+  const watchlistSources: NewsSource[] = [
+    new SerpApiClient({
+      apiKey: env.SERPAPI_API_KEY,
+      baseUrl: env.SERPAPI_BASE_URL,
+      gl: env.SERPAPI_GL,
+      hl: env.SERPAPI_HL,
+      queries: env.watchlistQueries,
+    }),
+  ];
+
   // --- LLM + auditoria ---
   // Seleciona o provedor por env: Anthropic direto ou gateway LiteLLM.
   const llm: LlmClient =
@@ -113,8 +124,11 @@ export function buildContainer() {
   // --- Use cases ---
   const collectNews = new CollectNewsUseCase(
     sources,
+    watchlistSources,
     articleRepository,
     env.COLLECT_MAX_AGE_HOURS,
+    env.WATCHLIST_MAX_AGE_DAYS * 24,
+    env.WATCHLIST_MAX_ITEMS,
   );
   const triageArticles = new TriageArticlesUseCase(
     articleRepository,

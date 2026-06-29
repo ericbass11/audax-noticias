@@ -85,7 +85,7 @@ export function StoryCard({ item }: { item: NewsItem }) {
     >
       <Thumb src={item.imageUrl} className="aspect-[16/9] w-full" />
       <div className="flex flex-1 flex-col p-4">
-        <Kicker category={item.category} />
+        <Kicker category={item.category ?? (item.track === 'watchlist' ? 'ANVISA' : null)} />
         <h3 className="mt-1 font-serif text-lg font-bold leading-snug tracking-tight text-foreground group-hover:text-primary">
           {item.title}
         </h3>

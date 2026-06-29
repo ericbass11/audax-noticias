@@ -9,6 +9,7 @@ export interface NewsItem {
   imageUrl: string | null;
   source: string;
   sourceType: string;
+  track: string; // 'news' | 'watchlist'
   publishedAt: string | null;
   impact: Impact | null;
   relevance: number | null;
