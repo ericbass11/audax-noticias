@@ -11,6 +11,7 @@ export interface ScoredArticle {
 export interface WatchlistMessageItem {
   id: string;
   title: string;
+  url: string;
   publishedAt: Date | null;
 }
 
@@ -76,28 +77,27 @@ export class ExecutiveSummaryBuilder {
   }
 
   /**
-   * Monta o texto final (determinístico). O link de cada notícia aponta para o
-   * PORTAL da Audax (`webAppUrl/noticia/:id`) — onde está a análise por área e o
-   * link da fonte —, não direto para o veículo.
+   * Monta o texto final (determinístico). O link de cada notícia aponta para a
+   * FONTE original (abre no celular). Quando o portal estiver público, dá para
+   * voltar a linkar para `webAppUrl/noticia/:id`.
    */
   buildMessage(
     top: ScoredArticle[],
     webAppUrl: string,
     watchlist: WatchlistMessageItem[] = [],
   ): string {
-    const base = webAppUrl.replace(/\/+$/, '');
+    void webAppUrl; // reservado p/ quando o portal for público
     const header = '*Audax Capital | Notícias — Agro & Crédito*';
     const sections: string[] = [header];
 
-    // Seção de notícias: impacto + categoria + título; data/hora; link do portal.
+    // Seção de notícias: impacto + categoria + título; data/hora; link da fonte.
     if (top.length > 0) {
       const blocks = top.map((s) => {
         const emoji = IMPACT_EMOJI[s.classification.impact];
         const cat = s.classification.category;
         const data = formatPublishedAtBR(s.article.publishedAt);
         const dateLine = data ? `🗓️ ${data}\n` : '';
-        const portalUrl = `${base}/noticia/${s.article.id}`;
-        return `${emoji} *${cat}* — ${s.article.title.trim()}\n${dateLine}${portalUrl}`;
+        return `${emoji} *${cat}* — ${s.article.title.trim()}\n${dateLine}${s.article.url}`;
       });
       sections.push(blocks.join('\n\n'));
     }
@@ -107,7 +107,7 @@ export class ExecutiveSummaryBuilder {
       const items = watchlist.map((w) => {
         const data = formatPublishedAtBR(w.publishedAt);
         const dateLine = data ? `🗓️ ${data}\n` : '';
-        return `⛔ ${w.title.trim()}\n${dateLine}${base}/noticia/${w.id}`;
+        return `⛔ ${w.title.trim()}\n${dateLine}${w.url}`;
       });
       sections.push(['*⚠️ Alertas regulatórios (ANVISA)*', items.join('\n\n')].join('\n'));
     }

@@ -61,6 +61,7 @@ export class GenerateSummaryUseCase {
     const watchlist: WatchlistMessageItem[] = watchlistArticles.map((a) => ({
       id: a.id!,
       title: a.title,
+      url: a.url,
       publishedAt: a.publishedAt,
     }));
 
