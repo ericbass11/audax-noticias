@@ -2,6 +2,7 @@ import type { CollectNewsUseCase } from '../modules/collection/application/use-c
 import type { TriageArticlesUseCase } from '../modules/classification/application/use-cases/TriageArticlesUseCase.js';
 import type { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import type { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
+import type { DedupeWatchlistUseCase } from '../modules/classification/application/use-cases/DedupeWatchlistUseCase.js';
 import type { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 import type { DispatchSummaryUseCase } from '../modules/notification/application/use-cases/DispatchSummaryUseCase.js';
 import { ExecutiveSummary } from '../modules/notification/domain/entities/ExecutiveSummary.js';
@@ -45,6 +46,7 @@ export class RunNewsCycleUseCase {
     private readonly classify: ClassifyArticlesUseCase,
     private readonly generateSummary: GenerateSummaryUseCase,
     private readonly analyze: GenerateArticleAnalysisUseCase,
+    private readonly dedupeWatchlist: DedupeWatchlistUseCase,
     private readonly summaries: SummaryRepository,
     private readonly dispatch: DispatchSummaryUseCase,
   ) {}
@@ -60,7 +62,17 @@ export class RunNewsCycleUseCase {
       // 1. Coleta em duas trilhas: 'news' (janela curta) e 'watchlist' (ampla,
       // ex.: ANVISA).
       const collection = await this.collect.execute(run.id!);
-      const watchlistIds = collection.watchlistArticleIds;
+
+      // Cura da watchlist: agrupa alertas do MESMO fato regulatório (mesma ação
+      // ANVISA publicada por vários veículos) e mantém um por evento.
+      let watchlistIds = collection.watchlistArticleIds;
+      if (watchlistIds.length > 1) {
+        try {
+          watchlistIds = await this.dedupeWatchlist.execute(watchlistIds);
+        } catch (err) {
+          console.error('⚠️  Dedup da watchlist falhou:', (err as Error).message);
+        }
+      }
 
       // Nada novo em nenhuma trilha → conclui o turno.
       if (collection.savedArticleIds.length === 0 && watchlistIds.length === 0) {

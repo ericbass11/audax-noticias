@@ -45,6 +45,11 @@ export function Masthead() {
               </Link>
             </li>
           ))}
+          <li>
+            <Link href="/alertas" className="font-semibold text-red-700 hover:underline">
+              ⚠️ Alertas ANVISA
+            </Link>
+          </li>
           <li className="ml-auto">
             <Link href="/painel" className="text-muted-foreground hover:text-primary">
               Painel

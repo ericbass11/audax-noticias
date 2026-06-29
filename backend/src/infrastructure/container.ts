@@ -22,6 +22,7 @@ import { TriageArticlesUseCase } from '../modules/classification/application/use
 import { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 import { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
+import { DedupeWatchlistUseCase } from '../modules/classification/application/use-cases/DedupeWatchlistUseCase.js';
 import { AnswerNewsChatUseCase } from '../modules/classification/application/use-cases/AnswerNewsChatUseCase.js';
 
 // Notification
@@ -162,6 +163,9 @@ export function buildContainer() {
     llm,
     auditLogger,
   );
+  // Cura da watchlist (agrupa o mesmo evento) — usa o modelo leve da triagem.
+  const dedupeWatchlist = new DedupeWatchlistUseCase(articleRepository, triageLlm, auditLogger);
+
   // Chat do portal (streaming) — sempre via Anthropic direto.
   const chatLlm = new AnthropicClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL });
   const answerNewsChat = new AnswerNewsChatUseCase(
@@ -185,6 +189,7 @@ export function buildContainer() {
     classifyArticles,
     generateSummary,
     generateArticleAnalysis,
+    dedupeWatchlist,
     summaryRepository,
     dispatchSummary,
   );

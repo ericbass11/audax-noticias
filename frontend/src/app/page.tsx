@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { fetchNews, fetchNewsDetail } from '@/lib/api';
 import { LeadStory, StoryCard } from '@/components/portal/StoryCard';
 import type { NewsItem } from '@/lib/types';
@@ -21,26 +22,28 @@ export default async function PortalHome({
   const category = searchParams.categoria;
 
   let newsItems: NewsItem[] = [];
-  let watchItems: NewsItem[] = [];
+  let latestWatch: NewsItem | null = null;
   let error: string | null = null;
   try {
-    // Notícias do dia (curadoria) + alertas de vigilância (ANVISA) à parte —
-    // estes têm janela de 30 dias, então não são filtrados por "hoje".
+    // Notícias do dia (curadoria) + o alerta ANVISA mais recente (rota própria,
+    // janela de 30 dias). A lista completa de alertas fica em /alertas.
     const [newsRes, watchRes] = await Promise.all([
       fetchNews({ date: todayInSaoPaulo(), category }),
-      fetchNews({ track: 'watchlist', limit: 12 }),
+      fetchNews({ track: 'watchlist', limit: 10 }),
     ]);
     newsItems = newsRes.items.filter((i) => i.hasAnalysis && i.track !== 'watchlist');
-    watchItems = watchRes.items.filter((i) => i.hasAnalysis);
+    // O mais recente JÁ analisado (ignora duplicatas descartadas, sem análise).
+    latestWatch = watchRes.items.filter((i) => i.hasAnalysis)[0] ?? null;
   } catch (e) {
     error = (e as Error).message;
   }
 
   const [lead, ...rest] = newsItems;
-  const totalCount = newsItems.length + watchItems.length;
+  // O alerta ANVISA mais recente entra junto das demais notícias.
+  const moreItems = [...(latestWatch ? [latestWatch] : []), ...rest.slice(3)];
+  const totalCount = newsItems.length + (latestWatch ? 1 : 0);
 
-  // Na manchete, usa o resumo executivo da análise (texto mais encorpado) —
-  // cai para a justificativa curta se a análise ainda não existir.
+  // Na manchete, usa o resumo executivo da análise (texto mais encorpado).
   let leadSummary: string | null = lead?.justification ?? null;
   if (lead) {
     try {
@@ -57,7 +60,9 @@ export default async function PortalHome({
         <h1 className="font-serif text-2xl font-bold tracking-tight">
           {category ? category : 'Principais notícias'}
         </h1>
-        <span className="text-sm text-muted-foreground">{totalCount} notícias hoje</span>
+        <Link href="/alertas" className="text-sm font-medium text-red-700 hover:underline">
+          ⚠️ Alertas ANVISA
+        </Link>
       </div>
 
       {error && (
@@ -75,19 +80,6 @@ export default async function PortalHome({
         </div>
       )}
 
-      {watchItems.length > 0 && (
-        <section className="mb-8 rounded-lg border border-red-200 bg-red-50/50 p-5">
-          <h2 className="mb-4 flex items-center gap-2 font-serif text-xl font-bold tracking-tight text-red-700">
-            ⚠️ Alertas Regulatórios (ANVISA)
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {watchItems.map((item) => (
-              <StoryCard key={item.id} item={item} />
-            ))}
-          </div>
-        </section>
-      )}
-
       {lead && (
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
@@ -101,13 +93,13 @@ export default async function PortalHome({
         </div>
       )}
 
-      {rest.length > 3 && (
+      {moreItems.length > 0 && (
         <>
           <h2 className="mb-4 mt-10 border-b border-border pb-2 font-serif text-xl font-bold tracking-tight">
             Mais notícias
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {rest.slice(3).map((item) => (
+            {moreItems.map((item) => (
               <StoryCard key={item.id} item={item} />
             ))}
           </div>
