@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: audax-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: audax
       POSTGRES_PASSWORD: audax
@@ -21,6 +22,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: audax-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -36,6 +38,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: audax-backend
+    restart: unless-stopped
     env_file:
       - .env
     environment:
