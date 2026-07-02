@@ -8,7 +8,7 @@ const listQuerySchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'date deve ser YYYY-MM-DD')
     .optional(),
   category: z.string().optional(),
-  track: z.enum(['news', 'watchlist']).optional(),
+  track: z.enum(['news', 'watchlist', 'fidc']).optional(),
   limit: z.coerce.number().min(1).max(500).optional(),
 });
 
