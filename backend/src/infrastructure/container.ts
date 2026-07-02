@@ -192,6 +192,7 @@ export function buildContainer() {
     dedupeWatchlist,
     summaryRepository,
     dispatchSummary,
+    env.WHATSAPP_INCLUDE_WATCHLIST,
   );
 
   const newsFeedQuery = new NewsFeedQuery(db);

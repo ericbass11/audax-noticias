@@ -49,6 +49,8 @@ export class RunNewsCycleUseCase {
     private readonly dedupeWatchlist: DedupeWatchlistUseCase,
     private readonly summaries: SummaryRepository,
     private readonly dispatch: DispatchSummaryUseCase,
+    /** Incluir o bloco de alertas ANVISA no WhatsApp? (portal sempre recebe). */
+    private readonly includeWatchlistInSummary = false,
   ) {}
 
   async execute(input: RunNewsCycleInput): Promise<RunNewsCycleResult> {
@@ -113,8 +115,12 @@ export class RunNewsCycleUseCase {
         }
       }
 
-      // 5. Resumo executivo: notícias relevantes + bloco de alertas ANVISA.
-      const summary = await this.generateSummary.execute(survivorIds, watchlistIds);
+      // 5. Resumo executivo: notícias relevantes (+ bloco ANVISA só se o flag
+      // estiver ligado). Os alertas seguem no portal independentemente.
+      const summary = await this.generateSummary.execute(
+        survivorIds,
+        this.includeWatchlistInSummary ? watchlistIds : [],
+      );
       if (!summary) {
         await this.runs.update(run);
         return {

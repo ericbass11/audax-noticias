@@ -57,6 +57,11 @@ const envSchema = z.object({
   // Teto de itens da watchlist por ciclo (os mais recentes) — controla custo
   // de análise e o volume do portal, já que a rota não passa pela triagem.
   WATCHLIST_MAX_ITEMS: z.coerce.number().default(20),
+  // Incluir o bloco de alertas ANVISA no WhatsApp? (false = só no portal).
+  WHATSAPP_INCLUDE_WATCHLIST: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
 
   // Provedor de LLM: 'anthropic' chama o Claude direto; 'litellm' usa o gateway.
   LLM_PROVIDER: z.enum(['anthropic', 'litellm']).default('litellm'),
