@@ -13,8 +13,8 @@ export interface NormalizedArticleInput {
   imageUrl: string | null; // imagem/thumbnail da notícia (quando a fonte fornece)
 }
 
-/** Trilha de coleta: fluxo normal ou vigilância regulatória. */
-export type ArticleTrack = 'news' | 'watchlist';
+/** Trilha de coleta: fluxo normal, vigilância regulatória (ANVISA) ou mercado FIDC. */
+export type ArticleTrack = 'news' | 'watchlist' | 'fidc';
 
 export interface ArticleProps extends NormalizedArticleInput {
   id?: string;

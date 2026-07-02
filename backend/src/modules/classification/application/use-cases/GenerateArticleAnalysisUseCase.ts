@@ -10,8 +10,11 @@ import {
   ANALYSIS_PROMPT_VERSION,
   ANALYSIS_SYSTEM_PROMPT,
   ANALYSIS_WATCHLIST_SYSTEM_PROMPT,
+  ANALYSIS_FIDC_SYSTEM_PROMPT,
   buildAnalysisUserPrompt,
 } from '../../infrastructure/llm/prompts/analysisPrompt.js';
+
+export type AnalysisMode = 'news' | 'watchlist' | 'fidc';
 
 interface ParsedAnalysis {
   resumo_executivo?: unknown;
@@ -48,13 +51,16 @@ export class GenerateArticleAnalysisUseCase {
 
   async execute(
     articleIds: string[],
-    opts: { watchlist?: boolean } = {},
+    opts: { mode?: AnalysisMode } = {},
   ): Promise<GenerateArticleAnalysisResult> {
     if (articleIds.length === 0) return { analyzed: 0, read: 0 };
 
-    const systemPrompt = opts.watchlist
-      ? ANALYSIS_WATCHLIST_SYSTEM_PROMPT
-      : ANALYSIS_SYSTEM_PROMPT;
+    const systemPrompt =
+      opts.mode === 'watchlist'
+        ? ANALYSIS_WATCHLIST_SYSTEM_PROMPT
+        : opts.mode === 'fidc'
+          ? ANALYSIS_FIDC_SYSTEM_PROMPT
+          : ANALYSIS_SYSTEM_PROMPT;
     const articles = await this.articleRepository.findByIds(articleIds);
     const classifications = await this.classificationRepository.findCurrentByArticleIds(articleIds);
 

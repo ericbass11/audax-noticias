@@ -54,6 +54,12 @@ const envSchema = z.object({
   // janela ampla, pula a triagem agro e sempre entra no portal/alertas.
   WATCHLIST_QUERIES: z.string().default(''),
   WATCHLIST_MAX_AGE_DAYS: z.coerce.number().default(30),
+
+  // Mercado FIDC/factoring/securitização + regulação (CVM/BACEN/CMN). Rota
+  // própria com digest e destinatário de WhatsApp SEPARADOS.
+  FIDC_QUERIES: z.string().default(''),
+  FIDC_MAX_AGE_DAYS: z.coerce.number().default(7),
+  FIDC_MAX_ITEMS: z.coerce.number().default(20),
   // Teto de itens da watchlist por ciclo (os mais recentes) — controla custo
   // de análise e o volume do portal, já que a rota não passa pela triagem.
   WATCHLIST_MAX_ITEMS: z.coerce.number().default(20),
@@ -103,6 +109,8 @@ const envSchema = z.object({
   EVOLUTION_INSTANCE: z.string().default('audax'),
   EVOLUTION_API_KEY: z.string().default(''),
   EVOLUTION_RECIPIENTS: z.string().default(''),
+  // Destinatários do 2º fluxo (mercado FIDC). Vazio = usa EVOLUTION_RECIPIENTS.
+  EVOLUTION_RECIPIENTS_FIDC: z.string().default(''),
   WHATSAPP_DISPATCH_ENABLED: z
     .string()
     .default('true')
@@ -126,7 +134,9 @@ export const env = {
   rssFeeds: csv(raw.RSS_FEEDS),
   serpapiQueries: csv(raw.SERPAPI_QUERIES),
   watchlistQueries: csv(raw.WATCHLIST_QUERIES),
+  fidcQueries: csv(raw.FIDC_QUERIES),
   evolutionRecipients: csv(raw.EVOLUTION_RECIPIENTS),
+  evolutionRecipientsFidc: csv(raw.EVOLUTION_RECIPIENTS_FIDC),
   isProduction: raw.NODE_ENV === 'production',
 };
 

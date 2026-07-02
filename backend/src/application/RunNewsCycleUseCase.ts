@@ -3,6 +3,7 @@ import type { TriageArticlesUseCase } from '../modules/classification/applicatio
 import type { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import type { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
 import type { DedupeWatchlistUseCase } from '../modules/classification/application/use-cases/DedupeWatchlistUseCase.js';
+import type { DispatchTrackDigestUseCase } from './DispatchTrackDigestUseCase.js';
 import type { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 import type { DispatchSummaryUseCase } from '../modules/notification/application/use-cases/DispatchSummaryUseCase.js';
 import { ExecutiveSummary } from '../modules/notification/domain/entities/ExecutiveSummary.js';
@@ -49,6 +50,9 @@ export class RunNewsCycleUseCase {
     private readonly dedupeWatchlist: DedupeWatchlistUseCase,
     private readonly summaries: SummaryRepository,
     private readonly dispatch: DispatchSummaryUseCase,
+    private readonly dispatchTrackDigest: DispatchTrackDigestUseCase,
+    /** Destinatários do 2º fluxo (mercado FIDC). */
+    private readonly fidcRecipients: string[] = [],
     /** Incluir o bloco de alertas ANVISA no WhatsApp? (portal sempre recebe). */
     private readonly includeWatchlistInSummary = false,
   ) {}
@@ -61,13 +65,14 @@ export class RunNewsCycleUseCase {
     }
 
     try {
-      // 1. Coleta em duas trilhas: 'news' (janela curta) e 'watchlist' (ampla,
-      // ex.: ANVISA).
+      // 1. Coleta: 'news' (janela curta) + rotas extras ('watchlist' ANVISA,
+      // 'fidc' mercado), cada uma com janela/teto próprios.
       const collection = await this.collect.execute(run.id!);
 
-      // Cura da watchlist: agrupa alertas do MESMO fato regulatório (mesma ação
-      // ANVISA publicada por vários veículos) e mantém um por evento.
-      let watchlistIds = collection.watchlistArticleIds;
+      // Cura das rotas extras: agrupa notícias do MESMO evento (mesma matéria
+      // em vários veículos) e mantém uma por evento.
+      let watchlistIds = collection.byTrack.watchlist ?? [];
+      let fidcIds = collection.byTrack.fidc ?? [];
       if (watchlistIds.length > 1) {
         try {
           watchlistIds = await this.dedupeWatchlist.execute(watchlistIds);
@@ -75,9 +80,20 @@ export class RunNewsCycleUseCase {
           console.error('⚠️  Dedup da watchlist falhou:', (err as Error).message);
         }
       }
+      if (fidcIds.length > 1) {
+        try {
+          fidcIds = await this.dedupeWatchlist.execute(fidcIds);
+        } catch (err) {
+          console.error('⚠️  Dedup FIDC falhou:', (err as Error).message);
+        }
+      }
 
       // Nada novo em nenhuma trilha → conclui o turno.
-      if (collection.savedArticleIds.length === 0 && watchlistIds.length === 0) {
+      if (
+        collection.savedArticleIds.length === 0 &&
+        watchlistIds.length === 0 &&
+        fidcIds.length === 0
+      ) {
         run.complete({ collected: collection.collected, deduped: 0, triaged: 0, classified: 0 });
         await this.runs.update(run);
         return {
@@ -109,9 +125,26 @@ export class RunNewsCycleUseCase {
       // 4. Vigilância (ANVISA): pula a triagem; análise focada em NFe/recebível.
       if (watchlistIds.length > 0) {
         try {
-          await this.analyze.execute(watchlistIds, { watchlist: true });
+          await this.analyze.execute(watchlistIds, { mode: 'watchlist' });
         } catch (err) {
           console.error('⚠️  Falha na análise de vigilância (ANVISA):', (err as Error).message);
+        }
+      }
+
+      // 4b. Rota FIDC (2º fluxo): análise de mercado/regulação + digest próprio
+      // disparado para o destinatário separado. Independe do digest do CEO.
+      if (fidcIds.length > 0) {
+        try {
+          await this.analyze.execute(fidcIds, { mode: 'fidc' });
+          await this.dispatchTrackDigest.execute(
+            run.id!,
+            `${input.periodKey}:fidc`,
+            fidcIds,
+            'Audax | Mercado FIDC & Regulação',
+            this.fidcRecipients,
+          );
+        } catch (err) {
+          console.error('⚠️  Falha no fluxo FIDC:', (err as Error).message);
         }
       }
 

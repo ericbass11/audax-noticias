@@ -77,6 +77,19 @@ export class ExecutiveSummaryBuilder {
   }
 
   /**
+   * Digest simples de uma rota (ex.: Mercado FIDC): cabeçalho + lista de itens
+   * (título, data, link da fonte). Usado no 2º fluxo de WhatsApp.
+   */
+  buildTrackDigest(header: string, items: WatchlistMessageItem[]): string {
+    const blocks = items.map((i) => {
+      const data = formatPublishedAtBR(i.publishedAt);
+      const dateLine = data ? `🗓️ ${data}\n` : '';
+      return `▪️ ${i.title.trim()}\n${dateLine}${i.url}`;
+    });
+    return [`*${header}*`, '', blocks.join('\n\n')].join('\n');
+  }
+
+  /**
    * Monta o texto final (determinístico). O link de cada notícia aponta para a
    * FONTE original (abre no celular). Quando o portal estiver público, dá para
    * voltar a linkar para `webAppUrl/noticia/:id`.

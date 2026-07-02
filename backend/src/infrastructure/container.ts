@@ -35,6 +35,7 @@ import { ResendSummaryUseCase } from '../modules/notification/application/use-ca
 // Shared + orchestration
 import { DrizzleProcessingRunRepository } from '../modules/shared/infrastructure/DrizzleProcessingRunRepository.js';
 import { RunNewsCycleUseCase } from '../application/RunNewsCycleUseCase.js';
+import { DispatchTrackDigestUseCase } from '../application/DispatchTrackDigestUseCase.js';
 import { NewsFeedQuery } from '../application/queries/NewsFeedQuery.js';
 
 /**
@@ -82,6 +83,17 @@ export function buildContainer() {
     }),
   ];
 
+  // Rota de mercado FIDC/factoring/securitização + regulação — só SerpAPI.
+  const fidcSources: NewsSource[] = [
+    new SerpApiClient({
+      apiKey: env.SERPAPI_API_KEY,
+      baseUrl: env.SERPAPI_BASE_URL,
+      gl: env.SERPAPI_GL,
+      hl: env.SERPAPI_HL,
+      queries: env.fidcQueries,
+    }),
+  ];
+
   // --- LLM + auditoria ---
   // Seleciona o provedor por env: Anthropic direto ou gateway LiteLLM.
   const llm: LlmClient =
@@ -125,11 +137,22 @@ export function buildContainer() {
   // --- Use cases ---
   const collectNews = new CollectNewsUseCase(
     sources,
-    watchlistSources,
     articleRepository,
     env.COLLECT_MAX_AGE_HOURS,
-    env.WATCHLIST_MAX_AGE_DAYS * 24,
-    env.WATCHLIST_MAX_ITEMS,
+    [
+      {
+        track: 'watchlist',
+        sources: watchlistSources,
+        maxAgeHours: env.WATCHLIST_MAX_AGE_DAYS * 24,
+        maxItems: env.WATCHLIST_MAX_ITEMS,
+      },
+      {
+        track: 'fidc',
+        sources: fidcSources,
+        maxAgeHours: env.FIDC_MAX_AGE_DAYS * 24,
+        maxItems: env.FIDC_MAX_ITEMS,
+      },
+    ],
   );
   const triageArticles = new TriageArticlesUseCase(
     articleRepository,
@@ -182,6 +205,16 @@ export function buildContainer() {
   );
   const resendSummary = new ResendSummaryUseCase(summaryRepository, dispatchSummary);
 
+  // 2º fluxo (mercado FIDC): digest próprio + destinatário separado.
+  const dispatchTrackDigest = new DispatchTrackDigestUseCase(
+    articleRepository,
+    summaryRepository,
+    dispatchSummary,
+  );
+  const fidcRecipients = env.evolutionRecipientsFidc.length
+    ? env.evolutionRecipientsFidc
+    : env.evolutionRecipients;
+
   const runNewsCycle = new RunNewsCycleUseCase(
     runRepository,
     collectNews,
@@ -192,6 +225,8 @@ export function buildContainer() {
     dedupeWatchlist,
     summaryRepository,
     dispatchSummary,
+    dispatchTrackDigest,
+    fidcRecipients,
     env.WHATSAPP_INCLUDE_WATCHLIST,
   );
 

@@ -3,53 +3,61 @@ import type { ArticleRepository } from '../../domain/repositories/ArticleReposit
 import { DeduplicationService } from '../../domain/services/DeduplicationService.js';
 import type { NewsSource } from '../../infrastructure/sources/NewsSource.js';
 
+/** Configuração de uma rota extra (watchlist ANVISA, mercado FIDC, ...). */
+export interface ExtraTrackConfig {
+  track: ArticleTrack;
+  sources: NewsSource[];
+  maxAgeHours: number;
+  maxItems: number; // 0 = sem teto
+}
+
 export interface CollectNewsResult {
-  collected: number; // total bruto vindo das fontes
-  recent: number; // após aplicar a janela de recência
-  deduped: number; // novos do fluxo normal (vão para triagem)
-  savedArticleIds: string[]; // novos do fluxo 'news'
-  watchlistArticleIds: string[]; // novos da rota de vigilância (ANVISA etc.)
+  collected: number; // total bruto de todas as trilhas
+  recent: number; // após recência (todas as trilhas)
+  deduped: number; // novos do fluxo 'news'
+  savedArticleIds: string[]; // novos do fluxo 'news' (vão para triagem)
+  byTrack: Partial<Record<ArticleTrack, string[]>>; // novos por rota extra
 }
 
 /**
- * CollectNewsUseCase — orquestra a coleta em DUAS trilhas:
- *   - 'news': fontes normais (agro/macro), janela de recência curta (24h).
- *   - 'watchlist': vigilância regulatória (ex.: ANVISA), janela ampla (dias),
- *     que pula a triagem e sempre entra no portal (rota própria).
+ * CollectNewsUseCase — coleta o fluxo normal ('news', janela curta, vai à
+ * triagem) e N rotas EXTRAS (ex.: 'watchlist' ANVISA, 'fidc' mercado) que têm
+ * janela/teto próprios, pulam a triagem e seguem para seus fluxos dedicados.
  *
- * Para cada trilha: busca → recência → normaliza → dedup → descarta existentes
- * → persiste. Retorna os ids novos de cada trilha.
+ * Cada rota: busca → recência → (teto) → normaliza → dedup → descarta
+ * existentes → persiste. Retorna os ids novos de cada rota.
  */
 export class CollectNewsUseCase {
   constructor(
     private readonly sources: NewsSource[],
-    private readonly watchlistSources: NewsSource[],
     private readonly articleRepository: ArticleRepository,
     /** Janela de recência do fluxo normal, em horas (0 desliga). */
     private readonly maxAgeHours: number = 24,
-    /** Janela de recência da watchlist, em horas (ex.: 30 dias = 720h). */
-    private readonly watchlistMaxAgeHours: number = 720,
-    /** Teto de itens da watchlist por ciclo (mais recentes); 0 = sem teto. */
-    private readonly watchlistMaxItems: number = 20,
+    /** Rotas extras (watchlist, fidc, ...). */
+    private readonly extraTracks: ExtraTrackConfig[] = [],
     private readonly dedup: DeduplicationService = new DeduplicationService(),
   ) {}
 
   async execute(runId: string): Promise<CollectNewsResult> {
     const news = await this.collectTrack(this.sources, this.maxAgeHours, 0, 'news', runId);
-    const watch = await this.collectTrack(
-      this.watchlistSources,
-      this.watchlistMaxAgeHours,
-      this.watchlistMaxItems,
-      'watchlist',
-      runId,
-    );
+
+    let collected = news.collected;
+    let recent = news.recent;
+    const byTrack: Partial<Record<ArticleTrack, string[]>> = {};
+
+    for (const t of this.extraTracks) {
+      const r = await this.collectTrack(t.sources, t.maxAgeHours, t.maxItems, t.track, runId);
+      collected += r.collected;
+      recent += r.recent;
+      byTrack[t.track] = r.savedIds;
+    }
 
     return {
-      collected: news.collected + watch.collected,
-      recent: news.recent + watch.recent,
+      collected,
+      recent,
       deduped: news.savedIds.length,
       savedArticleIds: news.savedIds,
-      watchlistArticleIds: watch.savedIds,
+      byTrack,
     };
   }
 
@@ -62,7 +70,6 @@ export class CollectNewsUseCase {
   ): Promise<{ collected: number; recent: number; savedIds: string[] }> {
     if (sources.length === 0) return { collected: 0, recent: 0, savedIds: [] };
 
-    // 1. Coleta de todas as fontes; uma fonte que falha não derruba as outras.
     const fetched = await Promise.allSettled(sources.map((s) => s.fetch()));
     const normalized = fetched.flatMap((r, i) => {
       if (r.status === 'fulfilled') return r.value;
@@ -71,14 +78,12 @@ export class CollectNewsUseCase {
     });
     const collected = normalized.length;
 
-    // 1b. Janela de recência.
     const recent = maxAgeHours > 0 ? this.filterRecent(normalized, maxAgeHours) : normalized;
-    const label = track === 'watchlist' ? `vigilância ${maxAgeHours}h` : `recência ${maxAgeHours}h`;
     if (maxAgeHours > 0) {
-      console.log(`🕒 ${label}: ${recent.length}/${collected} dentro da janela (${track}).`);
+      console.log(`🕒 recência ${maxAgeHours}h: ${recent.length}/${collected} na janela (${track}).`);
     }
 
-    // 1c. Teto opcional: mantém só os mais recentes (controla custo da watchlist).
+    // Teto opcional: mantém só os mais recentes (controla custo das rotas extras).
     const capped =
       maxItems > 0 && recent.length > maxItems
         ? [...recent]
@@ -86,24 +91,20 @@ export class CollectNewsUseCase {
             .slice(0, maxItems)
         : recent;
 
-    // 2. + 3. Entidades + dedup dentro do lote.
     const articles = capped
       .filter((n) => n.title && n.url)
       .map((n) => Article.fromNormalized(n, runId, track));
     const uniqueInBatch = this.dedup.dedupeWithinBatch(articles);
 
-    // 4. Remove os que já existem no banco.
     const existing = await this.articleRepository.findExistingHashes(
       uniqueInBatch.map((a) => a.contentHash),
     );
     const fresh = uniqueInBatch.filter((a) => !existing.has(a.contentHash));
 
-    // 5. Persiste só os novos.
     const saved = await this.articleRepository.saveNew(fresh);
     return { collected, recent: recent.length, savedIds: saved.map((a) => a.id!).filter(Boolean) };
   }
 
-  /** Mantém itens publicados nas últimas `maxAgeHours`; sem data → mantém. */
   private filterRecent(
     items: NormalizedArticleInput[],
     maxAgeHours: number,

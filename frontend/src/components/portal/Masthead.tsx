@@ -46,6 +46,11 @@ export function Masthead() {
             </li>
           ))}
           <li>
+            <Link href="/mercado" className="hover:text-primary">
+              Mercado FIDC
+            </Link>
+          </li>
+          <li>
             <Link href="/alertas" className="font-semibold text-red-700 hover:underline">
               ⚠️ Alertas ANVISA
             </Link>
