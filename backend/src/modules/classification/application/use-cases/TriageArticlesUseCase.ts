@@ -38,6 +38,8 @@ export class TriageArticlesUseCase {
     private readonly batchSize: number,
     private readonly minScore: number,
     private readonly maxToClassify: number,
+    /** Prompt de triagem (default: tese agro). Permite triagens temáticas. */
+    private readonly systemPrompt: string = TRIAGE_SYSTEM_PROMPT,
   ) {}
 
   async execute(articleIds: string[]): Promise<TriageArticlesResult> {
@@ -73,7 +75,7 @@ export class TriageArticlesUseCase {
 
     try {
       const completion = await this.llm.complete({
-        system: TRIAGE_SYSTEM_PROMPT,
+        system: this.systemPrompt,
         user: userPrompt,
         jsonMode: true,
       });

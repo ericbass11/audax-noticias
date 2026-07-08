@@ -19,6 +19,7 @@ import { LiteLLMClient } from '../modules/classification/infrastructure/llm/Lite
 import { AnthropicClient } from '../modules/classification/infrastructure/llm/AnthropicClient.js';
 import type { LlmClient } from '../modules/classification/infrastructure/llm/LlmClient.js';
 import { TriageArticlesUseCase } from '../modules/classification/application/use-cases/TriageArticlesUseCase.js';
+import { TRIAGE_FIDC_SYSTEM_PROMPT } from '../modules/classification/infrastructure/llm/prompts/triagePrompt.js';
 import { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 import { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
@@ -36,6 +37,8 @@ import { ResendSummaryUseCase } from '../modules/notification/application/use-ca
 import { DrizzleProcessingRunRepository } from '../modules/shared/infrastructure/DrizzleProcessingRunRepository.js';
 import { RunNewsCycleUseCase } from '../application/RunNewsCycleUseCase.js';
 import { DispatchTrackDigestUseCase } from '../application/DispatchTrackDigestUseCase.js';
+import { DispatchCommodityQuotesUseCase } from '../application/DispatchCommodityQuotesUseCase.js';
+import { CommodityQuotesFetcher } from '../modules/market/CommodityQuotesFetcher.js';
 import { NewsFeedQuery } from '../application/queries/NewsFeedQuery.js';
 
 /**
@@ -162,6 +165,16 @@ export function buildContainer() {
     env.TRIAGE_MIN_SCORE,
     env.TRIAGE_MAX_TO_CLASSIFY,
   );
+  // Triagem de relevância da rota FIDC (tese ampliada: segmento + juros/BC/geo).
+  const fidcTriage = new TriageArticlesUseCase(
+    articleRepository,
+    triageLlm,
+    auditLogger,
+    env.LLM_BATCH_SIZE,
+    env.TRIAGE_MIN_SCORE,
+    env.FIDC_MAX_ANALYZE,
+    TRIAGE_FIDC_SYSTEM_PROMPT,
+  );
   const classifyArticles = new ClassifyArticlesUseCase(
     articleRepository,
     classificationRepository,
@@ -215,10 +228,20 @@ export function buildContainer() {
     ? env.evolutionRecipientsFidc
     : env.evolutionRecipients;
 
+  // 3º fluxo: boletim de cotações de commodities (SOJA/MILHO/CAFÉ/BOI GORDO).
+  const dispatchCommodityQuotes = new DispatchCommodityQuotesUseCase(
+    new CommodityQuotesFetcher(),
+    whatsapp,
+    env.evolutionRecipientsCommodities.length
+      ? env.evolutionRecipientsCommodities
+      : env.evolutionRecipients,
+  );
+
   const runNewsCycle = new RunNewsCycleUseCase(
     runRepository,
     collectNews,
     triageArticles,
+    fidcTriage,
     classifyArticles,
     generateSummary,
     generateArticleAnalysis,
@@ -226,6 +249,7 @@ export function buildContainer() {
     summaryRepository,
     dispatchSummary,
     dispatchTrackDigest,
+    dispatchCommodityQuotes,
     fidcRecipients,
     env.WHATSAPP_INCLUDE_WATCHLIST,
   );

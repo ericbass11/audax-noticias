@@ -59,7 +59,9 @@ const envSchema = z.object({
   // própria com digest e destinatário de WhatsApp SEPARADOS.
   FIDC_QUERIES: z.string().default(''),
   FIDC_MAX_AGE_DAYS: z.coerce.number().default(7),
-  FIDC_MAX_ITEMS: z.coerce.number().default(20),
+  FIDC_MAX_ITEMS: z.coerce.number().default(60),
+  // Após a triagem de relevância FIDC, quantas seguem para análise/digest.
+  FIDC_MAX_ANALYZE: z.coerce.number().default(15),
   // Teto de itens da watchlist por ciclo (os mais recentes) — controla custo
   // de análise e o volume do portal, já que a rota não passa pela triagem.
   WATCHLIST_MAX_ITEMS: z.coerce.number().default(20),
@@ -111,6 +113,8 @@ const envSchema = z.object({
   EVOLUTION_RECIPIENTS: z.string().default(''),
   // Destinatários do 2º fluxo (mercado FIDC). Vazio = usa EVOLUTION_RECIPIENTS.
   EVOLUTION_RECIPIENTS_FIDC: z.string().default(''),
+  // Destinatários do 3º fluxo (cotações de commodities). Vazio = usa EVOLUTION_RECIPIENTS.
+  EVOLUTION_RECIPIENTS_COMMODITIES: z.string().default(''),
   WHATSAPP_DISPATCH_ENABLED: z
     .string()
     .default('true')
@@ -137,6 +141,7 @@ export const env = {
   fidcQueries: csv(raw.FIDC_QUERIES),
   evolutionRecipients: csv(raw.EVOLUTION_RECIPIENTS),
   evolutionRecipientsFidc: csv(raw.EVOLUTION_RECIPIENTS_FIDC),
+  evolutionRecipientsCommodities: csv(raw.EVOLUTION_RECIPIENTS_COMMODITIES),
   isProduction: raw.NODE_ENV === 'production',
 };
 
