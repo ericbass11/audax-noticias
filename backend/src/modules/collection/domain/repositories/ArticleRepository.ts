@@ -1,10 +1,25 @@
-import type { Article } from '../entities/Article.js';
+import type { Article, ArticleTrack } from '../entities/Article.js';
 
 export interface ArticleListFilter {
   /** Data no formato YYYY-MM-DD (filtra por published_at no fuso BRT). */
   date?: string;
   category?: string;
   limit?: number;
+}
+
+/** Referência leve (id + título) de uma notícia já analisada/enviada. */
+export interface ArticleTitleRef {
+  id: string;
+  title: string;
+}
+
+export interface RecentAnalyzedQuery {
+  track: ArticleTrack;
+  /** Janela para trás, em dias (compara pela data de coleta). */
+  sinceDays: number;
+  /** Ids a excluir (as próprias candidatas do ciclo atual). */
+  excludeIds: string[];
+  limit: number;
 }
 
 /**
@@ -28,4 +43,11 @@ export interface ArticleRepository {
 
   /** Notícias para a interface/leitura, já com filtros opcionais. */
   list(filter: ArticleListFilter): Promise<Article[]>;
+
+  /**
+   * Notícias de uma trilha que JÁ foram analisadas (surfadas no portal/digest)
+   * dentro da janela — base para o dedup contra o histórico (não reenviar a
+   * mesma história em dias diferentes). Mais recentes primeiro.
+   */
+  findRecentAnalyzed(query: RecentAnalyzedQuery): Promise<ArticleTitleRef[]>;
 }

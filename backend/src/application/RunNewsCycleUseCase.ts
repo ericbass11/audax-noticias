@@ -3,6 +3,7 @@ import type { TriageArticlesUseCase } from '../modules/classification/applicatio
 import type { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import type { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
 import type { DedupeWatchlistUseCase } from '../modules/classification/application/use-cases/DedupeWatchlistUseCase.js';
+import type { DedupeAgainstHistoryUseCase } from '../modules/classification/application/use-cases/DedupeAgainstHistoryUseCase.js';
 import type { DispatchTrackDigestUseCase } from './DispatchTrackDigestUseCase.js';
 import type { DispatchCommodityQuotesUseCase } from './DispatchCommodityQuotesUseCase.js';
 import type { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
@@ -32,6 +33,17 @@ export interface RunNewsCycleResult {
 }
 
 /**
+ * Janela (dias) do dedup contra o histórico por trilha — quanto tempo para trás
+ * olhamos para não reenviar a mesma história. Alinhado à janela de coleta de
+ * cada trilha (news usa 3d p/ cobrir desdobramentos entre ciclos de 08h/18h).
+ */
+const HISTORY_WINDOW_DAYS: Record<'news' | 'watchlist' | 'fidc', number> = {
+  news: 3,
+  fidc: 7,
+  watchlist: 30,
+};
+
+/**
  * RunNewsCycleUseCase — orquestração de aplicação (cross-módulo) de UM turno:
  *
  *   coleta → dedup → classificação (LLM) → resumo executivo → PERSISTE → disparo
@@ -52,6 +64,8 @@ export class RunNewsCycleUseCase {
     private readonly dedupeWatchlist: DedupeWatchlistUseCase,
     /** Dedup semântico do fluxo 'news' (mesma história em vários veículos). */
     private readonly dedupeNews: DedupeWatchlistUseCase,
+    /** Dedup contra o histórico (não reenviar a mesma história em dias diferentes). */
+    private readonly dedupeHistory: DedupeAgainstHistoryUseCase,
     private readonly summaries: SummaryRepository,
     private readonly dispatch: DispatchSummaryUseCase,
     private readonly dispatchTrackDigest: DispatchTrackDigestUseCase,
@@ -92,6 +106,13 @@ export class RunNewsCycleUseCase {
         } catch (err) {
           console.error('⚠️  Dedup da watchlist falhou:', (err as Error).message);
         }
+      }
+      // Não reenviar alertas ANVISA já enviados em dias anteriores.
+      if (watchlistIds.length > 0) {
+        watchlistIds = await this.dedupeHistory.execute(watchlistIds, {
+          track: 'watchlist',
+          sinceDays: HISTORY_WINDOW_DAYS.watchlist,
+        });
       }
       if (fidcIds.length > 1) {
         try {
@@ -136,6 +157,13 @@ export class RunNewsCycleUseCase {
             console.error('⚠️  Dedup de notícias falhou:', (err as Error).message);
           }
         }
+        // Não reenviar histórias já enviadas ao CEO em dias anteriores.
+        if (survivorIds.length > 0) {
+          survivorIds = await this.dedupeHistory.execute(survivorIds, {
+            track: 'news',
+            sinceDays: HISTORY_WINDOW_DAYS.news,
+          });
+        }
         classified = (await this.classify.execute(survivorIds)).classified;
       }
       run.complete({
@@ -163,6 +191,13 @@ export class RunNewsCycleUseCase {
         } catch (err) {
           console.error('⚠️  Triagem FIDC falhou:', (err as Error).message);
         }
+      }
+      // Não reenviar matérias FIDC já enviadas em dias anteriores.
+      if (fidcIds.length > 0) {
+        fidcIds = await this.dedupeHistory.execute(fidcIds, {
+          track: 'fidc',
+          sinceDays: HISTORY_WINDOW_DAYS.fidc,
+        });
       }
       if (fidcIds.length > 0) {
         try {

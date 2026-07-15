@@ -24,6 +24,7 @@ import { ClassifyArticlesUseCase } from '../modules/classification/application/u
 import { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 import { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
 import { DedupeWatchlistUseCase, DEDUPE_NEWS_SYSTEM } from '../modules/classification/application/use-cases/DedupeWatchlistUseCase.js';
+import { DedupeAgainstHistoryUseCase } from '../modules/classification/application/use-cases/DedupeAgainstHistoryUseCase.js';
 import { AnswerNewsChatUseCase } from '../modules/classification/application/use-cases/AnswerNewsChatUseCase.js';
 
 // Notification
@@ -216,6 +217,8 @@ export function buildContainer() {
     DEDUPE_NEWS_SYSTEM,
     'notícias',
   );
+  // Dedup contra o histórico (não reenviar a mesma história em dias diferentes).
+  const dedupeHistory = new DedupeAgainstHistoryUseCase(articleRepository, triageLlm, auditLogger);
 
   // Chat do portal (streaming) — sempre via Anthropic direto.
   const chatLlm = new AnthropicClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL });
@@ -262,6 +265,7 @@ export function buildContainer() {
     generateArticleAnalysis,
     dedupeWatchlist,
     dedupeNews,
+    dedupeHistory,
     summaryRepository,
     dispatchSummary,
     dispatchTrackDigest,

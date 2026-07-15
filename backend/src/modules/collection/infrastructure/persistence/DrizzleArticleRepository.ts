@@ -1,10 +1,12 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, exists, gte, inArray, notInArray, sql } from 'drizzle-orm';
 import type { Database } from '../../../../infrastructure/database/client.js';
-import { newsArticles } from '../../../../infrastructure/database/schema.js';
+import { articleAnalyses, newsArticles } from '../../../../infrastructure/database/schema.js';
 import { Article } from '../../domain/entities/Article.js';
 import type {
   ArticleListFilter,
   ArticleRepository,
+  ArticleTitleRef,
+  RecentAnalyzedQuery,
 } from '../../domain/repositories/ArticleRepository.js';
 import { ArticleMapper } from '../mappers/ArticleMapper.js';
 
@@ -70,5 +72,37 @@ export class DrizzleArticleRepository implements ArticleRepository {
       .limit(filter.limit ?? 200);
 
     return rows.map(ArticleMapper.toDomain);
+  }
+
+  async findRecentAnalyzed(query: RecentAnalyzedQuery): Promise<ArticleTitleRef[]> {
+    const cutoff = new Date(Date.now() - query.sinceDays * 24 * 60 * 60 * 1000);
+    const conditions = [
+      eq(newsArticles.track, query.track),
+      gte(newsArticles.collectedAt, cutoff),
+      // Só as que JÁ foram analisadas (surfadas no portal/digest).
+      exists(
+        this.db
+          .select({ one: sql`1` })
+          .from(articleAnalyses)
+          .where(
+            and(
+              eq(articleAnalyses.articleId, newsArticles.id),
+              eq(articleAnalyses.isCurrent, true),
+            ),
+          ),
+      ),
+    ];
+    if (query.excludeIds.length > 0) {
+      conditions.push(notInArray(newsArticles.id, query.excludeIds));
+    }
+
+    const rows = await this.db
+      .select({ id: newsArticles.id, title: newsArticles.title })
+      .from(newsArticles)
+      .where(and(...conditions))
+      .orderBy(desc(newsArticles.collectedAt))
+      .limit(query.limit);
+
+    return rows;
   }
 }
