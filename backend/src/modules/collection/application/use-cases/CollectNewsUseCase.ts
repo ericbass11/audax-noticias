@@ -39,7 +39,11 @@ export class CollectNewsUseCase {
   ) {}
 
   async execute(runId: string): Promise<CollectNewsResult> {
-    const news = await this.collectTrack(this.sources, this.maxAgeHours, 0, 'news', runId);
+    // Fluxo 'news': janela curta (24h) e ESTRITA — descarta itens sem data
+    // reconhecida (não assume que são recentes), fechando a brecha de notícias
+    // antigas escaparem no digest do CEO. FIDC/ANVISA mantêm o comportamento
+    // tolerante (janela larga: 7/30 dias).
+    const news = await this.collectTrack(this.sources, this.maxAgeHours, 0, 'news', runId, true);
 
     let collected = news.collected;
     let recent = news.recent;
@@ -67,6 +71,7 @@ export class CollectNewsUseCase {
     maxItems: number,
     track: ArticleTrack,
     runId: string,
+    dropUndated = false,
   ): Promise<{ collected: number; recent: number; savedIds: string[] }> {
     if (sources.length === 0) return { collected: 0, recent: 0, savedIds: [] };
 
@@ -78,7 +83,8 @@ export class CollectNewsUseCase {
     });
     const collected = normalized.length;
 
-    const recent = maxAgeHours > 0 ? this.filterRecent(normalized, maxAgeHours) : normalized;
+    const recent =
+      maxAgeHours > 0 ? this.filterRecent(normalized, maxAgeHours, dropUndated) : normalized;
     if (maxAgeHours > 0) {
       console.log(`🕒 recência ${maxAgeHours}h: ${recent.length}/${collected} na janela (${track}).`);
     }
@@ -108,8 +114,12 @@ export class CollectNewsUseCase {
   private filterRecent(
     items: NormalizedArticleInput[],
     maxAgeHours: number,
+    dropUndated = false,
   ): NormalizedArticleInput[] {
     const cutoff = Date.now() - maxAgeHours * 60 * 60 * 1000;
-    return items.filter((n) => !n.publishedAt || n.publishedAt.getTime() >= cutoff);
+    return items.filter((n) => {
+      if (!n.publishedAt) return !dropUndated; // sem data: só passa se tolerante
+      return n.publishedAt.getTime() >= cutoff;
+    });
   }
 }
