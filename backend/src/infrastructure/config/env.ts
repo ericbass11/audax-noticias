@@ -49,6 +49,10 @@ const envSchema = z.object({
   SERPAPI_GL: z.string().default('br'),
   SERPAPI_HL: z.string().default('pt-br'),
   SERPAPI_QUERIES: z.string().default(''),
+  // Pacing p/ não estourar o rate limit (HTTP 429): espera entre requisições e
+  // nº de tentativas com backoff quando o SerpAPI devolve 429.
+  SERPAPI_DELAY_MS: z.coerce.number().default(2000),
+  SERPAPI_MAX_RETRIES: z.coerce.number().default(4),
 
   // Vigilância regulatória (ex.: produtos proibidos pela ANVISA). Rota própria:
   // janela ampla, pula a triagem agro e sempre entra no portal/alertas.

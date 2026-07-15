@@ -7,7 +7,13 @@ export interface SerpApiConfig {
   gl: string; // país, ex.: 'br'
   hl: string; // idioma, ex.: 'pt-br'
   queries: string[];
+  // Espera (ms) entre requisições para respeitar o rate limit do SerpAPI.
+  delayMs?: number;
+  // Tentativas ao receber HTTP 429 (com backoff exponencial). 0 = não tenta de novo.
+  maxRetries?: number;
 }
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 interface SerpApiNewsItem {
   title?: string;
@@ -50,8 +56,12 @@ export class SerpApiClient implements NewsSource {
       return [];
     }
 
+    const delayMs = this.config.delayMs ?? 2000;
     const all: NormalizedArticleInput[] = [];
-    for (const query of this.config.queries) {
+    for (let i = 0; i < this.config.queries.length; i++) {
+      const query = this.config.queries[i]!;
+      // Espaça as requisições (fila) para não estourar o rate limit do SerpAPI.
+      if (i > 0 && delayMs > 0) await sleep(delayMs);
       try {
         all.push(...(await this.search(query)));
       } catch (err) {
@@ -69,10 +79,25 @@ export class SerpApiClient implements NewsSource {
       hl: this.config.hl,
       api_key: this.config.apiKey,
     });
-    const res = await fetch(`${this.config.baseUrl}?${params.toString()}`, {
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) throw new Error(`SerpAPI HTTP ${res.status}`);
+
+    const maxRetries = this.config.maxRetries ?? 4;
+    let res: Response | undefined;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      res = await fetch(`${this.config.baseUrl}?${params.toString()}`, {
+        signal: AbortSignal.timeout(20000),
+      });
+      // 429 = rate limit: espera crescente (5s, 10s, 20s, 40s) e tenta de novo.
+      if (res.status === 429 && attempt < maxRetries) {
+        const backoff = 5000 * 2 ** attempt;
+        console.warn(
+          `⏳ SerpAPI 429 na query "${query}" — aguardando ${backoff / 1000}s (tentativa ${attempt + 1}/${maxRetries}).`,
+        );
+        await sleep(backoff);
+        continue;
+      }
+      break;
+    }
+    if (!res || !res.ok) throw new Error(`SerpAPI HTTP ${res?.status ?? 'sem resposta'}`);
 
     const data = (await res.json()) as SerpApiResponse;
     if (data.error) throw new Error(data.error);

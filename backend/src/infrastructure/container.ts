@@ -71,6 +71,8 @@ export function buildContainer() {
       gl: env.SERPAPI_GL,
       hl: env.SERPAPI_HL,
       queries: env.serpapiQueries,
+      delayMs: env.SERPAPI_DELAY_MS,
+      maxRetries: env.SERPAPI_MAX_RETRIES,
     }),
     new RssClient(env.rssFeeds),
   ];
@@ -83,6 +85,8 @@ export function buildContainer() {
       gl: env.SERPAPI_GL,
       hl: env.SERPAPI_HL,
       queries: env.watchlistQueries,
+      delayMs: env.SERPAPI_DELAY_MS,
+      maxRetries: env.SERPAPI_MAX_RETRIES,
     }),
   ];
 
@@ -94,6 +98,8 @@ export function buildContainer() {
       gl: env.SERPAPI_GL,
       hl: env.SERPAPI_HL,
       queries: env.fidcQueries,
+      delayMs: env.SERPAPI_DELAY_MS,
+      maxRetries: env.SERPAPI_MAX_RETRIES,
     }),
   ];
 
