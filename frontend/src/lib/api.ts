@@ -1,15 +1,27 @@
 import type { NewsDetail, NewsResponse } from './types';
 
 /**
- * Cliente da API do backend. O frontend consome o mesmo Postgres VIA a API
- * REST (não conecta direto no banco). A URL base vem de NEXT_PUBLIC_API_URL.
+ * Base da API. Duas origens:
+ *  - SERVIDOR (SSR): usa API_URL_INTERNAL (ex.: http://backend:3333 na rede do
+ *    compose); cai para a pública se não houver.
+ *  - CLIENTE (browser): usa NEXT_PUBLIC_API_URL (embutida no build). Em produção
+ *    fica vazia → mesma origem, e o Nginx roteia /api → backend. Em dev, aponta
+ *    para http://localhost:3333.
  */
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333';
+const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333';
+
+function apiBase(): string {
+  if (typeof window === 'undefined') {
+    return process.env.API_URL_INTERNAL || PUBLIC_API_URL;
+  }
+  return PUBLIC_API_URL;
+}
+const API_URL = apiBase();
 
 export interface NewsFilters {
   date?: string;
   category?: string;
-  track?: 'news' | 'watchlist';
+  track?: 'news' | 'watchlist' | 'fidc';
   limit?: number;
 }
 

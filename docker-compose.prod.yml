@@ -1,0 +1,120 @@
+# Produção (VPS interna) — stack completo via Docker, atrás de um Nginx.
+# Uso na VPS:
+#   cp .env.example .env   # preencher chaves, EVOLUTION_SERVER_URL, WEB_APP_URL
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Acesso: portal em http://IP-DA-VPS  (Nginx:80) · Evolution/QR em http://IP-DA-VPS:8080/manager
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: audax-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-audax}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-audax}
+      POSTGRES_DB: ${POSTGRES_DB:-audax_noticias}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Cria o banco 'evolution' na primeira subida (volume vazio).
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-audax} -d ${POSTGRES_DB:-audax_noticias}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: audax-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: audax-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-audax}:${POSTGRES_PASSWORD:-audax}@postgres:5432/${POSTGRES_DB:-audax_noticias}
+      REDIS_URL: redis://redis:6379
+      EVOLUTION_BASE_URL: http://evolution_api:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "pnpm db:migrate && node dist/main.js"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Vazio = mesma origem (o Nginx roteia /api). Não embute IP no bundle.
+        NEXT_PUBLIC_API_URL: ''
+    container_name: audax-frontend
+    restart: unless-stopped
+    environment:
+      # SSR (dentro do compose) fala com o backend pela rede interna.
+      API_URL_INTERNAL: http://backend:3333
+    depends_on:
+      - backend
+
+  evolution_api:
+    image: atendai/evolution-api:v2.2.3
+    container_name: audax-evolution
+    restart: unless-stopped
+    environment:
+      # URL pública p/ QR/manager — na VPS: http://IP-DA-VPS:8080
+      SERVER_URL: ${EVOLUTION_SERVER_URL:-http://localhost:8080}
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: 'false'
+      CONFIG_SESSION_PHONE_VERSION: 2.3000.1035194821
+      DATABASE_ENABLED: 'true'
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER:-audax}:${POSTGRES_PASSWORD:-audax}@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      DATABASE_SAVE_DATA_INSTANCE: 'true'
+      DATABASE_SAVE_DATA_NEW_MESSAGE: 'true'
+      DATABASE_SAVE_MESSAGE_UPDATE: 'true'
+      DATABASE_SAVE_DATA_CONTACTS: 'true'
+      DATABASE_SAVE_DATA_CHATS: 'true'
+      CACHE_REDIS_ENABLED: 'true'
+      CACHE_REDIS_URI: redis://redis:6379/1
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_SAVE_INSTANCES: 'false'
+      CACHE_LOCAL_ENABLED: 'false'
+    volumes:
+      - evolution-instances:/evolution/instances
+    ports:
+      - '8080:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: audax-nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - '80:80'
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  postgres-data:
+  redis-data:
+  evolution-instances:

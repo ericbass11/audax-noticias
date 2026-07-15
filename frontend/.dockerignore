@@ -1,0 +1,5 @@
+# Não copiar artefatos do host — a imagem instala/compila do zero.
+node_modules
+.next
+.env*
+*.log
