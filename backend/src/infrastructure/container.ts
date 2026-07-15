@@ -23,7 +23,7 @@ import { TRIAGE_FIDC_SYSTEM_PROMPT } from '../modules/classification/infrastruct
 import { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 import { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
-import { DedupeWatchlistUseCase } from '../modules/classification/application/use-cases/DedupeWatchlistUseCase.js';
+import { DedupeWatchlistUseCase, DEDUPE_NEWS_SYSTEM } from '../modules/classification/application/use-cases/DedupeWatchlistUseCase.js';
 import { AnswerNewsChatUseCase } from '../modules/classification/application/use-cases/AnswerNewsChatUseCase.js';
 
 // Notification
@@ -207,6 +207,15 @@ export function buildContainer() {
   );
   // Cura da watchlist (agrupa o mesmo evento) — usa o modelo leve da triagem.
   const dedupeWatchlist = new DedupeWatchlistUseCase(articleRepository, triageLlm, auditLogger);
+  // Cura do fluxo 'news' (mesma história em vários veículos) — mesmo mecanismo,
+  // prompt genérico de "mesmo acontecimento".
+  const dedupeNews = new DedupeWatchlistUseCase(
+    articleRepository,
+    triageLlm,
+    auditLogger,
+    DEDUPE_NEWS_SYSTEM,
+    'notícias',
+  );
 
   // Chat do portal (streaming) — sempre via Anthropic direto.
   const chatLlm = new AnthropicClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL });
@@ -252,6 +261,7 @@ export function buildContainer() {
     generateSummary,
     generateArticleAnalysis,
     dedupeWatchlist,
+    dedupeNews,
     summaryRepository,
     dispatchSummary,
     dispatchTrackDigest,

@@ -50,6 +50,8 @@ export class RunNewsCycleUseCase {
     private readonly generateSummary: GenerateSummaryUseCase,
     private readonly analyze: GenerateArticleAnalysisUseCase,
     private readonly dedupeWatchlist: DedupeWatchlistUseCase,
+    /** Dedup semântico do fluxo 'news' (mesma história em vários veículos). */
+    private readonly dedupeNews: DedupeWatchlistUseCase,
     private readonly summaries: SummaryRepository,
     private readonly dispatch: DispatchSummaryUseCase,
     private readonly dispatchTrackDigest: DispatchTrackDigestUseCase,
@@ -124,6 +126,16 @@ export class RunNewsCycleUseCase {
       if (collection.savedArticleIds.length > 0) {
         const triage = await this.triage.execute(collection.savedArticleIds);
         survivorIds = triage.survivorIds;
+        // Cura os sobreviventes: colapsa a MESMA história publicada por vários
+        // veículos em um representante (o dedup por tokens não pega títulos
+        // reescritos). Evita o digest do CEO com 7x a mesma matéria.
+        if (survivorIds.length > 1) {
+          try {
+            survivorIds = await this.dedupeNews.execute(survivorIds);
+          } catch (err) {
+            console.error('⚠️  Dedup de notícias falhou:', (err as Error).message);
+          }
+        }
         classified = (await this.classify.execute(survivorIds)).classified;
       }
       run.complete({
