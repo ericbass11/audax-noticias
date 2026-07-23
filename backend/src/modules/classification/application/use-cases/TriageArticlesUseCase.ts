@@ -70,7 +70,11 @@ export class TriageArticlesUseCase {
 
   private async triageBatch(batch: Article[]): Promise<{ id: string; score: number }[]> {
     const items = toTriageItems(batch);
-    const userPrompt = buildTriageUserPrompt(items);
+    // Data de hoje (BRT) para a IA julgar a atualidade de cada notícia.
+    const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(
+      new Date(),
+    );
+    const userPrompt = buildTriageUserPrompt(items, today);
     const ids = new Set(batch.map((a) => a.id!));
 
     try {

@@ -3,14 +3,18 @@ import type { Article } from '../../../../collection/domain/entities/Article.js'
 /**
  * Versão do prompt de triagem (auditoria / reprocesso).
  */
-export const TRIAGE_PROMPT_VERSION = 'triage-v1';
+export const TRIAGE_PROMPT_VERSION = 'triage-v2';
 
-/** Item enxuto que a triagem recebe — só o necessário para pontuar pelo título. */
+/** Item enxuto que a triagem recebe — título + resumo + data informada. */
 export interface TriagePromptItem {
   id: string;
   title: string;
   source: string;
   rawCategory: string | null;
+  /** Resumo/snippet da fonte — dá contexto p/ relevância e atualidade. */
+  summary: string | null;
+  /** Data informada pela fonte (YYYY-MM-DD) — pode estar errada; a IA cruza com o conteúdo. */
+  publishedAt: string | null;
 }
 
 export function toTriageItems(articles: Article[]): TriagePromptItem[] {
@@ -19,8 +23,20 @@ export function toTriageItems(articles: Article[]): TriagePromptItem[] {
     title: a.title,
     source: a.source,
     rawCategory: a.rawCategory,
+    summary: a.summary ?? null,
+    publishedAt: a.publishedAt ? a.publishedAt.toISOString().slice(0, 10) : null,
   }));
 }
+
+/**
+ * Regra de ATUALIDADE compartilhada pelas triagens. Além da relevância, a IA
+ * avalia se a notícia é recente — pega casos como uma matéria de 2023 que o
+ * feed reporta com data atual (ex.: páginas de "mais lidas"/agregadoras).
+ */
+const FRESHNESS_RULE = `ATUALIDADE (obrigatório, afeta o score): considere também se a notícia é ATUAL, cruzando o título + resumo com "publishedAt" (data informada, pode estar errada) e a data de HOJE. Dê score 0 (descartar) quando:
+- o título/resumo indicar conteúdo ANTIGO/retrospectivo (ex.: trata um ano JÁ PASSADO como futuro — "2023 pode ser o ano..."; balanço de ano encerrado; "há X anos");
+- for página de "mais lidas"/trending/agenda reaproveitada, ou o conteúdo for claramente incompatível com a data informada.
+ATENÇÃO: apenas CITAR um ano/data passada (ex.: "crédito cresceu vs 2023") NÃO torna a notícia antiga — só rebaixe se a PRÓPRIA notícia for velha.`;
 
 /**
  * Prompt de TRIAGEM (modelo leve/barato). Não classifica — apenas estima, pelo
@@ -34,7 +50,9 @@ O que IMPORTA para esta FIDC: macroeconomia (Selic, câmbio, inflação, políti
 
 O que NÃO importa (descarte com score baixo): esportes, entretenimento, celebridades, fofoca, horóscopo, games, novelas, política partidária sem efeito econômico, esportes, polícia/crimes locais sem relação financeira.
 
-Tarefa: para CADA notícia, dê um "score" inteiro de 0 a 100 estimando, SÓ pelo título, a probabilidade de ser relevante para a FIDC. Não classifique impacto nem categoria — isso é outra etapa. Na dúvida entre relevante e irrelevante, pontue mais alto (a etapa seguinte filtra melhor).
+Tarefa: para CADA notícia, dê um "score" inteiro de 0 a 100 estimando, pelo título e resumo, a probabilidade de ser relevante para a FIDC. Não classifique impacto nem categoria — isso é outra etapa. Na dúvida entre relevante e irrelevante, pontue mais alto (a etapa seguinte filtra melhor).
+
+${FRESHNESS_RULE}
 
 REGRAS DE SAÍDA (obrigatório):
 - Responda SOMENTE com JSON válido, sem markdown, sem cercas de código, sem preâmbulo.
@@ -60,13 +78,15 @@ CONDICIONAL (pontue alto SÓ se claramente relevante para crédito/FIDC/juros; s
 
 BAIXO (0-30): esportes, entretenimento, política partidária sem efeito econômico, geopolítica/macroeconomia genérica sem ligação com crédito/FIDC, e assuntos fora do tema.
 
+${FRESHNESS_RULE}
+
 REGRAS DE SAÍDA (obrigatório):
 - Responda SOMENTE com JSON válido, sem markdown/cercas/preâmbulo.
 - Forma: {"resultados": [{"id": "<id>", "score": 0}]}
 - Exatamente um objeto por notícia, repetindo o "id".`;
 
-export function buildTriageUserPrompt(items: TriagePromptItem[]): string {
-  return `Pontue (0-100) a relevância potencial de cada notícia. Retorne um objeto por id no array "resultados".
+export function buildTriageUserPrompt(items: TriagePromptItem[], today: string): string {
+  return `Hoje é ${today}. Pontue (0-100) cada notícia por RELEVÂNCIA e ATUALIDADE — dê score 0 se for antiga/desatualizada (regra de ATUALIDADE). Retorne um objeto por id no array "resultados".
 
 NOTÍCIAS:
 ${JSON.stringify(items, null, 2)}`;
