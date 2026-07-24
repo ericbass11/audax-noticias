@@ -1,8 +1,9 @@
-# Produção (VPS interna) — stack completo via Docker, atrás de um Nginx.
+# Produção (VPS interna) — stack via Docker, atrás de um Nginx.
+# A Evolution API é EXTERNA (já rodando na VPS); este stack NÃO sobe uma nova.
 # Uso na VPS:
-#   cp .env.example .env   # preencher chaves, EVOLUTION_SERVER_URL, WEB_APP_URL
+#   cp .env.example .env   # preencher chaves, WEB_APP_URL, EVOLUTION_BASE_URL (a Evolution existente)
 #   docker compose -f docker-compose.prod.yml up -d --build
-# Acesso: portal em http://IP-DA-VPS  (Nginx:80) · Evolution/QR em http://IP-DA-VPS:8080/manager
+# Acesso: portal em http://IP-DA-VPS  (Nginx:80). WhatsApp/QR = na sua Evolution já existente.
 services:
   postgres:
     image: postgres:16-alpine
@@ -14,8 +15,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-audax_noticias}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # Cria o banco 'evolution' na primeira subida (volume vazio).
-      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-audax} -d ${POSTGRES_DB:-audax_noticias}']
       interval: 5s
@@ -45,7 +44,13 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-audax}:${POSTGRES_PASSWORD:-audax}@postgres:5432/${POSTGRES_DB:-audax_noticias}
       REDIS_URL: redis://redis:6379
-      EVOLUTION_BASE_URL: http://evolution_api:8080
+      # Evolution é EXTERNA (já rodando na VPS). Defina EVOLUTION_BASE_URL no .env.
+      # Default: alcança a Evolution publicada na porta 8080 do HOST da VPS.
+      EVOLUTION_BASE_URL: ${EVOLUTION_BASE_URL:-http://host.docker.internal:8080}
+    # Deixa o backend (no compose) alcançar serviços publicados no host da VPS
+    # (ex.: a Evolution em host:8080) via host.docker.internal.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,40 +73,6 @@ services:
     depends_on:
       - backend
 
-  evolution_api:
-    image: atendai/evolution-api:v2.2.3
-    container_name: audax-evolution
-    restart: unless-stopped
-    environment:
-      # URL pública p/ QR/manager — na VPS: http://IP-DA-VPS:8080
-      SERVER_URL: ${EVOLUTION_SERVER_URL:-http://localhost:8080}
-      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
-      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: 'false'
-      CONFIG_SESSION_PHONE_VERSION: 2.3000.1035194821
-      DATABASE_ENABLED: 'true'
-      DATABASE_PROVIDER: postgresql
-      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER:-audax}:${POSTGRES_PASSWORD:-audax}@postgres:5432/evolution?schema=public
-      DATABASE_CONNECTION_CLIENT_NAME: evolution
-      DATABASE_SAVE_DATA_INSTANCE: 'true'
-      DATABASE_SAVE_DATA_NEW_MESSAGE: 'true'
-      DATABASE_SAVE_MESSAGE_UPDATE: 'true'
-      DATABASE_SAVE_DATA_CONTACTS: 'true'
-      DATABASE_SAVE_DATA_CHATS: 'true'
-      CACHE_REDIS_ENABLED: 'true'
-      CACHE_REDIS_URI: redis://redis:6379/1
-      CACHE_REDIS_PREFIX_KEY: evolution
-      CACHE_REDIS_SAVE_INSTANCES: 'false'
-      CACHE_LOCAL_ENABLED: 'false'
-    volumes:
-      - evolution-instances:/evolution/instances
-    ports:
-      - '8080:8080'
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
   nginx:
     image: nginx:1.27-alpine
     container_name: audax-nginx
@@ -117,4 +88,3 @@ services:
 volumes:
   postgres-data:
   redis-data:
-  evolution-instances:
