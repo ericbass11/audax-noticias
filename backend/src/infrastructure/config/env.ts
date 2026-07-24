@@ -167,6 +167,16 @@ const envSchema = z.object({
   EVOLUTION_RECIPIENTS_FIDC: z.string().default(''),
   // Destinatários do 3º fluxo (cotações de commodities). Vazio = usa EVOLUTION_RECIPIENTS.
   EVOLUTION_RECIPIENTS_COMMODITIES: z.string().default(''),
+  // PREVIEW: se ligado, TODOS os fluxos vão primeiro para EVOLUTION_RECIPIENTS_PREVIEW
+  // (número pessoal p/ validar) e, após PREVIEW_PROMOTE_DELAY_MINUTES, o mesmo
+  // conteúdo é promovido para os destinatários reais (grupo). Desligado = envia
+  // direto ao grupo (comportamento normal).
+  EVOLUTION_RECIPIENTS_PREVIEW: z.string().default(''),
+  PREVIEW_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+  PREVIEW_PROMOTE_DELAY_MINUTES: z.coerce.number().default(30),
   WHATSAPP_DISPATCH_ENABLED: z
     .string()
     .default('true')
@@ -195,6 +205,7 @@ export const env = {
   evolutionRecipients: csv(raw.EVOLUTION_RECIPIENTS),
   evolutionRecipientsFidc: csv(raw.EVOLUTION_RECIPIENTS_FIDC),
   evolutionRecipientsCommodities: csv(raw.EVOLUTION_RECIPIENTS_COMMODITIES),
+  evolutionRecipientsPreview: csv(raw.EVOLUTION_RECIPIENTS_PREVIEW),
   isProduction: raw.NODE_ENV === 'production',
 };
 

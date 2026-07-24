@@ -86,7 +86,16 @@ export class RunNewsCycleUseCase {
     private readonly disasterMaxItems = 6,
     /** Rodar a trilha de desastres só no ciclo da manhã? (economia de SerpAPI). */
     private readonly disasterOnlyMorning = true,
+    /** Modo PREVIEW: se ligado + destinatários setados, o ciclo dispara TUDO
+     *  para estes (número pessoal); a promoção ao grupo é feita depois. */
+    private readonly previewRecipients: string[] = [],
+    private readonly previewEnabled = false,
   ) {}
+
+  /** Modo preview ativo? (todos os disparos do ciclo vão ao número pessoal). */
+  private get previewMode(): boolean {
+    return this.previewEnabled && this.previewRecipients.length > 0;
+  }
 
   async execute(input: RunNewsCycleInput): Promise<RunNewsCycleResult> {
     const { run, created } = await this.runs.findOrCreate(input.periodKey, input.triggerType);
@@ -99,7 +108,9 @@ export class RunNewsCycleUseCase {
       // 0. Boletim de cotações de commodities (3º fluxo) — snapshot fresco,
       // independente das notícias. Tolerante a falha.
       try {
-        await this.dispatchCommodityQuotes.execute();
+        await this.dispatchCommodityQuotes.execute(
+          this.previewMode ? this.previewRecipients : undefined,
+        );
       } catch (err) {
         console.error('⚠️  Falha no boletim de cotações:', (err as Error).message);
       }
@@ -233,7 +244,7 @@ export class RunNewsCycleUseCase {
             `${input.periodKey}:fidc`,
             fidcIds,
             'Audax | Mercado FIDC & Regulação',
-            this.fidcRecipients,
+            this.previewMode ? this.previewRecipients : this.fidcRecipients,
           );
         } catch (err) {
           console.error('⚠️  Falha no fluxo FIDC:', (err as Error).message);
@@ -323,7 +334,10 @@ export class RunNewsCycleUseCase {
       await this.runs.update(run);
 
       // 8. Só então dispara no WhatsApp.
-      const dispatchResult = await this.dispatch.execute(persisted.id!);
+      const dispatchResult = await this.dispatch.execute(
+        persisted.id!,
+        this.previewMode ? { recipients: this.previewRecipients } : {},
+      );
 
       return {
         periodKey: input.periodKey,

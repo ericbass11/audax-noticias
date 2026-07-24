@@ -7,7 +7,8 @@ export const NEWS_QUEUE_NAME = 'news';
 /** Tipos de job processados pela fila. */
 export type NewsJob =
   | { type: 'cycle'; periodKey: string; triggerType: TriggerType; force?: boolean }
-  | { type: 'resend'; periodKey: string; force?: boolean };
+  | { type: 'resend'; periodKey: string; force?: boolean }
+  | { type: 'promote'; periodKey: string };
 
 /**
  * Fila única de processamento assíncrono. O endpoint de gatilho enfileira e
@@ -44,4 +45,16 @@ export async function enqueueCycle(
 
 export async function enqueueResend(periodKey: string, force = false): Promise<void> {
   await newsQueue.add('resend', { type: 'resend', periodKey, force });
+}
+
+/**
+ * Enfileira a PROMOÇÃO ao grupo (após o preview no número pessoal), com atraso.
+ * `jobId = promote:<periodKey>` evita duplicar a promoção do mesmo turno.
+ */
+export async function enqueuePromote(periodKey: string, delayMs: number): Promise<void> {
+  await newsQueue.add(
+    'promote',
+    { type: 'promote', periodKey },
+    { delay: Math.max(0, delayMs), jobId: `promote:${periodKey}` },
+  );
 }

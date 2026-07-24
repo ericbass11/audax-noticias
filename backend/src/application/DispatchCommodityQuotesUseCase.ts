@@ -19,8 +19,9 @@ export class DispatchCommodityQuotesUseCase {
     private readonly recipients: string[],
   ) {}
 
-  async execute(): Promise<DispatchCommodityQuotesResult> {
-    if (this.recipients.length === 0) return { sent: 0, failed: 0, quotes: 0 };
+  async execute(recipientsOverride?: string[]): Promise<DispatchCommodityQuotesResult> {
+    const recipients = recipientsOverride ?? this.recipients;
+    if (recipients.length === 0) return { sent: 0, failed: 0, quotes: 0 };
 
     const quotes = await this.fetcher.fetch();
     if (quotes.length === 0) return { sent: 0, failed: 0, quotes: 0 };
@@ -28,7 +29,7 @@ export class DispatchCommodityQuotesUseCase {
     const text = this.buildMessage(quotes);
     let sent = 0;
     let failed = 0;
-    for (const recipient of this.recipients) {
+    for (const recipient of recipients) {
       try {
         await this.whatsapp.sendText(recipient, text);
         sent += 1;

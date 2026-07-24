@@ -9,6 +9,7 @@ import { SerpApiClient } from '../modules/collection/infrastructure/sources/Serp
 import type { NewsSource } from '../modules/collection/infrastructure/sources/NewsSource.js';
 import { CollectNewsUseCase } from '../modules/collection/application/use-cases/CollectNewsUseCase.js';
 import { CollectDisasterUseCase } from '../modules/collection/application/use-cases/CollectDisasterUseCase.js';
+import { PromoteToGroupUseCase } from '../application/PromoteToGroupUseCase.js';
 import { SqlServerCityProvider } from '../modules/collection/infrastructure/db/SqlServerCityProvider.js';
 
 // Classification
@@ -289,12 +290,24 @@ export function buildContainer() {
     : env.evolutionRecipients;
 
   // 3º fluxo: boletim de cotações de commodities (SOJA/MILHO/CAFÉ/BOI GORDO).
+  const commoditiesRecipients = env.evolutionRecipientsCommodities.length
+    ? env.evolutionRecipientsCommodities
+    : env.evolutionRecipients;
   const dispatchCommodityQuotes = new DispatchCommodityQuotesUseCase(
     new CommodityQuotesFetcher(),
     whatsapp,
-    env.evolutionRecipientsCommodities.length
-      ? env.evolutionRecipientsCommodities
-      : env.evolutionRecipients,
+    commoditiesRecipients,
+  );
+
+  // Fase 2 do PREVIEW: promove o turno já enviado ao número pessoal para o
+  // grupo real (notícias + FIDC + cotações), após o atraso configurado.
+  const promoteToGroup = new PromoteToGroupUseCase(
+    summaryRepository,
+    dispatchSummary,
+    dispatchCommodityQuotes,
+    env.evolutionRecipients,
+    fidcRecipients,
+    commoditiesRecipients,
   );
 
   const runNewsCycle = new RunNewsCycleUseCase(
@@ -319,6 +332,8 @@ export function buildContainer() {
     env.INCLUDE_DISASTER_IN_SUMMARY,
     env.DISASTER_MAX_ITEMS,
     env.DISASTER_ONLY_MORNING,
+    env.evolutionRecipientsPreview,
+    env.PREVIEW_ENABLED,
   );
 
   const newsFeedQuery = new NewsFeedQuery(db);
@@ -333,7 +348,7 @@ export function buildContainer() {
       runRepository,
     },
     queries: { newsFeedQuery },
-    useCases: { runNewsCycle, resendSummary, dispatchSummary, answerNewsChat },
+    useCases: { runNewsCycle, resendSummary, dispatchSummary, answerNewsChat, promoteToGroup },
   };
 }
 
