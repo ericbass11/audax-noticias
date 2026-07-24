@@ -48,8 +48,9 @@ services:
       # Fala com o LiteLLM que roda NA SUA MÁQUINA (fora do compose), na porta
       # 4000. LITELLM_API_KEY vem do .env (virtual key emitida pelo gateway).
       LITELLM_BASE_URL: http://host.docker.internal:4000
-      # Evolution API roda no mesmo compose; alcança pelo nome do serviço.
-      EVOLUTION_BASE_URL: http://evolution_api:8080
+      # Evolution: usa a do .env (produção via domínio). Sem valor no .env, cai
+      # no container local do compose (evolution_api) como fallback de dev.
+      EVOLUTION_BASE_URL: ${EVOLUTION_BASE_URL:-http://evolution_api:8080}
     extra_hosts:
       # Garante a resolução de host.docker.internal (necessário no Linux;
       # no Docker Desktop Win/Mac já funciona, e isto não atrapalha).
