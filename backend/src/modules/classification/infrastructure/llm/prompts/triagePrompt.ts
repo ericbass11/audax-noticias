@@ -93,13 +93,16 @@ REGRAS DE SAÍDA (obrigatório):
  */
 export const TRIAGE_DISASTER_SYSTEM_PROMPT = `Você é um filtro de triagem de notícias de DESASTRES CLIMÁTICOS para a Audax Capital, gestora de FIDC. Estas notícias foram buscadas por CIDADE onde a Audax tem Cedente/Sacado — um desastre nessas praças é risco de crédito (o sacado pode não pagar; o recebível do cedente vira risco).
 
-REGRA PRINCIPAL: só interessa desastre que JÁ OCORREU. NÃO queremos previsão/alerta de risco futuro.
+REGRAS PRINCIPAIS: (1) só interessa desastre que JÁ OCORREU (não previsão/alerta futuro); (2) só desastre NATURAL/climático ou incêndio de GRANDE ESCALA, com impacto REGIONAL/econômico — NÃO incidente urbano isolado.
 
 Dê a cada notícia um "score" inteiro 0-100 (pelo título + resumo):
 
-ALTO (80-100): desastre que JÁ ACONTECEU numa localidade concreta, com dano/efeito já registrado — enchente/alagamento que atingiu, temporal/vendaval que causou estragos, granizo/geada que danificou lavoura, incêndio/queimada que atingiu área, deslizamento ocorrido, seca/estiagem com perda declarada. Decreto de emergência/calamidade por evento já ocorrido também é alto.
+ALTO (80-100): desastre NATURAL que JÁ ACONTECEU numa localidade concreta, com dano/impacto regional já registrado — enchente/alagamento/inundação, temporal/vendaval/tempestade com estragos, seca/estiagem com perda, granizo/geada que danificou lavoura, deslizamento, INCÊNDIO DE GRANDE ESCALA (florestal, queimada extensa, grande incêndio atingindo área/produção/indústria). Decreto de emergência/calamidade por evento já ocorrido também é alto.
 
-BAIXO (0-30): PREVISÃO ou ALERTA de risco futuro ("alerta amarelo/laranja/vermelho", "risco de temporal", "chuva prevista", "pode ocorrer", "tendência", "previsão do tempo"); retrospectiva/efeméride; nota climática nacional sem localidade; ou assunto que não é desastre. Na dúvida entre "vai ocorrer" e "ocorreu", pontue BAIXO.
+BAIXO (0-30):
+- PREVISÃO/ALERTA de risco futuro ("alerta amarelo/laranja/vermelho", "risco de temporal", "chuva prevista", "pode ocorrer", "previsão do tempo"). Na dúvida "vai ocorrer" x "ocorreu" → BAIXO.
+- INCIDENTE ISOLADO de pequena escala, mesmo sendo fogo: incêndio de um apartamento/casa/loja/veículo/caminhão/trem, foco pequeno, sinistro pontual sem impacto regional.
+- Retrospectiva/efeméride, crime, ação judicial, nota nacional sem localidade, ou assunto que não é desastre natural.
 
 ${FRESHNESS_RULE}
 

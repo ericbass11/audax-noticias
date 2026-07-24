@@ -95,11 +95,12 @@ const envSchema = z.object({
   // Query que retorna as cidades com Cedente/Sacado (ex.: títulos > 10k),
   // ordenada por exposição desc. DEVE retornar colunas `cidade` e `uf`.
   DISASTER_CITIES_QUERY: z.string().default(''),
-  // Termos de desastre combinados por cidade (OR).
+  // Termos de desastre combinados por cidade (OR). Estreitos p/ evitar incêndio
+  // urbano (trem/prédio) — foco em eventos climáticos/agro.
   DISASTER_QUERY_TERMS: z
     .string()
     .default(
-      'enchente,alagamento,seca,estiagem,temporal,granizo,geada,vendaval,deslizamento,incêndio,queimada',
+      'enchente,alagamento,inundação,seca,estiagem,temporal,vendaval,granizo,geada,deslizamento,incêndio florestal,queimada,incêndio em lavoura',
     ),
   // Teto de cidades pesquisadas por ciclo (as N primeiras da query) — controla
   // custo/limite do SerpAPI.
