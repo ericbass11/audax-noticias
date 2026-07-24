@@ -82,6 +82,8 @@ export class RunNewsCycleUseCase {
     private readonly disasterTriage?: TriageArticlesUseCase,
     /** Incluir o bloco de risco climático no digest do CEO? */
     private readonly includeDisasterInSummary = true,
+    /** Teto de itens de desastre no bloco do digest (0 = sem teto). */
+    private readonly disasterMaxItems = 6,
   ) {}
 
   async execute(input: RunNewsCycleInput): Promise<RunNewsCycleResult> {
@@ -244,11 +246,27 @@ export class RunNewsCycleUseCase {
           console.error('⚠️  Triagem de desastres falhou:', (err as Error).message);
         }
       }
+      // Colapsa near-dups (mesmo desastre/cidade em vários veículos — ex.: 3
+      // matérias do mesmo incêndio) num representante, para não repetir contexto.
+      // Preserva a ordem de score da triagem (o dedup pode reordenar).
+      if (disasterIds.length > 1) {
+        try {
+          const kept = new Set(await this.dedupeNews.execute(disasterIds));
+          disasterIds = disasterIds.filter((id) => kept.has(id));
+        } catch (err) {
+          console.error('⚠️  Dedup de desastres falhou:', (err as Error).message);
+        }
+      }
+      // Não repetir desastres já enviados em dias anteriores.
       if (disasterIds.length > 0) {
         disasterIds = await this.dedupeHistory.execute(disasterIds, {
           track: 'disaster',
           sinceDays: HISTORY_WINDOW_DAYS.disaster,
         });
+      }
+      // Teto do bloco: evita um digest gigante (mostra os de maior score).
+      if (this.disasterMaxItems > 0 && disasterIds.length > this.disasterMaxItems) {
+        disasterIds = disasterIds.slice(0, this.disasterMaxItems);
       }
       if (disasterIds.length > 0) {
         try {

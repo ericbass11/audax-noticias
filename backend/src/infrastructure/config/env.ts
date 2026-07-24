@@ -107,6 +107,9 @@ const envSchema = z.object({
   // Janela de recência (desastre é notícia fresca) e teto de itens analisados.
   DISASTER_MAX_AGE_HOURS: z.coerce.number().default(72),
   DISASTER_MAX_ANALYZE: z.coerce.number().default(15),
+  // Teto de itens de desastre no BLOCO do digest (evita bloco gigante). Após o
+  // dedup semântico, mostra no máximo estes (os de maior score da triagem).
+  DISASTER_MAX_ITEMS: z.coerce.number().default(6),
   // Incluir o bloco de risco climático no digest do CEO? (default sim).
   INCLUDE_DISASTER_IN_SUMMARY: z
     .string()
