@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { redisConnection } from './connection.js';
+import { createRedisConnection } from './connection.js';
 import { NEWS_QUEUE_NAME, enqueuePromote, type NewsJob } from './queues.js';
 import { env } from '../config/env.js';
 import type { Container } from '../container.js';
@@ -49,7 +49,9 @@ export function startWorker(container: Container): Worker<NewsJob> {
       }
       throw new Error(`Tipo de job desconhecido`);
     },
-    { connection: redisConnection, concurrency: 1 },
+    // Conexão DEDICADA para o worker (comandos bloqueantes) — não compartilhar
+    // com a Queue, sob risco de deadlock no enqueue.
+    { connection: createRedisConnection(), concurrency: 1 },
   );
 
   worker.on('failed', (job, err) => {
