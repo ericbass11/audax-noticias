@@ -116,6 +116,12 @@ const envSchema = z.object({
     .string()
     .default('true')
     .transform((v) => v === 'true'),
+  // Rodar a trilha de desastres SÓ no ciclo da manhã (08h)? (default sim —
+  // reduz custo do SerpAPI; à tarde a trilha é pulada).
+  DISASTER_ONLY_MORNING: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
 
   // Provedor de LLM: 'anthropic' chama o Claude direto; 'litellm' usa o gateway.
   LLM_PROVIDER: z.enum(['anthropic', 'litellm']).default('litellm'),

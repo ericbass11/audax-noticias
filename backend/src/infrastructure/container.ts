@@ -318,6 +318,7 @@ export function buildContainer() {
     disasterTriage,
     env.INCLUDE_DISASTER_IN_SUMMARY,
     env.DISASTER_MAX_ITEMS,
+    env.DISASTER_ONLY_MORNING,
   );
 
   const newsFeedQuery = new NewsFeedQuery(db);

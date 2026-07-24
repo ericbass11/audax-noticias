@@ -84,6 +84,8 @@ export class RunNewsCycleUseCase {
     private readonly includeDisasterInSummary = true,
     /** Teto de itens de desastre no bloco do digest (0 = sem teto). */
     private readonly disasterMaxItems = 6,
+    /** Rodar a trilha de desastres só no ciclo da manhã? (economia de SerpAPI). */
+    private readonly disasterOnlyMorning = true,
   ) {}
 
   async execute(input: RunNewsCycleInput): Promise<RunNewsCycleResult> {
@@ -108,8 +110,10 @@ export class RunNewsCycleUseCase {
 
       // 1b. Trilha de desastres climáticos: cidades com Cedente/Sacado vêm de um
       // banco EXTERNO (via CollectDisasterUseCase). Desligável/tolerante.
+      // Por economia de SerpAPI, roda só no ciclo da manhã (configurável).
       let disasterIds: string[] = [];
-      if (this.collectDisaster) {
+      const runDisaster = !this.disasterOnlyMorning || input.periodKey.endsWith(':morning');
+      if (this.collectDisaster && runDisaster) {
         try {
           disasterIds = (await this.collectDisaster.execute(run.id!)).savedIds;
         } catch (err) {
