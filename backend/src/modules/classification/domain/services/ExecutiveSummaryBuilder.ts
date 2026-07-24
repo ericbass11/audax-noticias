@@ -98,6 +98,7 @@ export class ExecutiveSummaryBuilder {
     top: ScoredArticle[],
     webAppUrl: string,
     watchlist: WatchlistMessageItem[] = [],
+    disaster: WatchlistMessageItem[] = [],
   ): string {
     void webAppUrl; // reservado p/ quando o portal for público
     const header = '*Audax Capital | Notícias — Agro & Crédito*';
@@ -123,6 +124,18 @@ export class ExecutiveSummaryBuilder {
         return `⛔ ${w.title.trim()}\n${dateLine}${w.url}`;
       });
       sections.push(['*⚠️ Alertas regulatórios (ANVISA)*', items.join('\n\n')].join('\n'));
+    }
+
+    // Bloco de risco climático nas praças com Cedente/Sacado.
+    if (disaster.length > 0) {
+      const items = disaster.map((d) => {
+        const data = formatPublishedAtBR(d.publishedAt);
+        const dateLine = data ? `🗓️ ${data}\n` : '';
+        return `🌪️ ${d.title.trim()}\n${dateLine}${d.url}`;
+      });
+      sections.push(
+        ['*🌪️ Risco climático — praças com Cedente/Sacado*', items.join('\n\n')].join('\n'),
+      );
     }
 
     return sections.join('\n\n');

@@ -75,6 +75,44 @@ const envSchema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
 
+  // Desastres climáticos em praças com Cedente/Sacado. As cidades vêm de um
+  // banco EXTERNO (SQL Server); a trilha só roda se DISASTER_DB_SERVER e
+  // DISASTER_CITIES_QUERY estiverem preenchidos (senão, desligada).
+  DISASTER_DB_SERVER: z.string().default(''),
+  DISASTER_DB_PORT: z.coerce.number().default(1433),
+  DISASTER_DB_DATABASE: z.string().default(''),
+  DISASTER_DB_USER: z.string().default(''),
+  DISASTER_DB_PASSWORD: z.string().default(''),
+  // On-prem SQL Server normalmente exige estes dois:
+  DISASTER_DB_ENCRYPT: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+  DISASTER_DB_TRUST_CERT: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+  // Query que retorna as cidades com Cedente/Sacado (ex.: títulos > 10k),
+  // ordenada por exposição desc. DEVE retornar colunas `cidade` e `uf`.
+  DISASTER_CITIES_QUERY: z.string().default(''),
+  // Termos de desastre combinados por cidade (OR).
+  DISASTER_QUERY_TERMS: z
+    .string()
+    .default(
+      'enchente,alagamento,seca,estiagem,temporal,granizo,geada,vendaval,deslizamento,incêndio,queimada',
+    ),
+  // Teto de cidades pesquisadas por ciclo (as N primeiras da query) — controla
+  // custo/limite do SerpAPI.
+  DISASTER_MAX_CITIES: z.coerce.number().default(30),
+  // Janela de recência (desastre é notícia fresca) e teto de itens analisados.
+  DISASTER_MAX_AGE_HOURS: z.coerce.number().default(72),
+  DISASTER_MAX_ANALYZE: z.coerce.number().default(15),
+  // Incluir o bloco de risco climático no digest do CEO? (default sim).
+  INCLUDE_DISASTER_IN_SUMMARY: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+
   // Provedor de LLM: 'anthropic' chama o Claude direto; 'litellm' usa o gateway.
   LLM_PROVIDER: z.enum(['anthropic', 'litellm']).default('litellm'),
 
@@ -143,6 +181,7 @@ export const env = {
   serpapiQueries: csv(raw.SERPAPI_QUERIES),
   watchlistQueries: csv(raw.WATCHLIST_QUERIES),
   fidcQueries: csv(raw.FIDC_QUERIES),
+  disasterQueryTerms: csv(raw.DISASTER_QUERY_TERMS),
   evolutionRecipients: csv(raw.EVOLUTION_RECIPIENTS),
   evolutionRecipientsFidc: csv(raw.EVOLUTION_RECIPIENTS_FIDC),
   evolutionRecipientsCommodities: csv(raw.EVOLUTION_RECIPIENTS_COMMODITIES),

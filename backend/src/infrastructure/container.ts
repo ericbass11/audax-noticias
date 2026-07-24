@@ -8,6 +8,8 @@ import { RssClient } from '../modules/collection/infrastructure/sources/RssClien
 import { SerpApiClient } from '../modules/collection/infrastructure/sources/SerpApiClient.js';
 import type { NewsSource } from '../modules/collection/infrastructure/sources/NewsSource.js';
 import { CollectNewsUseCase } from '../modules/collection/application/use-cases/CollectNewsUseCase.js';
+import { CollectDisasterUseCase } from '../modules/collection/application/use-cases/CollectDisasterUseCase.js';
+import { SqlServerCityProvider } from '../modules/collection/infrastructure/db/SqlServerCityProvider.js';
 
 // Classification
 import { DrizzleClassificationRepository } from '../modules/classification/infrastructure/persistence/DrizzleClassificationRepository.js';
@@ -19,7 +21,7 @@ import { LiteLLMClient } from '../modules/classification/infrastructure/llm/Lite
 import { AnthropicClient } from '../modules/classification/infrastructure/llm/AnthropicClient.js';
 import type { LlmClient } from '../modules/classification/infrastructure/llm/LlmClient.js';
 import { TriageArticlesUseCase } from '../modules/classification/application/use-cases/TriageArticlesUseCase.js';
-import { TRIAGE_FIDC_SYSTEM_PROMPT } from '../modules/classification/infrastructure/llm/prompts/triagePrompt.js';
+import { TRIAGE_FIDC_SYSTEM_PROMPT, TRIAGE_DISASTER_SYSTEM_PROMPT } from '../modules/classification/infrastructure/llm/prompts/triagePrompt.js';
 import { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import { GenerateSummaryUseCase } from '../modules/classification/application/use-cases/GenerateSummaryUseCase.js';
 import { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
@@ -182,6 +184,46 @@ export function buildContainer() {
     env.FIDC_MAX_ANALYZE,
     TRIAGE_FIDC_SYSTEM_PROMPT,
   );
+
+  // Trilha de DESASTRES climáticos: cidades com Cedente/Sacado vêm de um SQL
+  // Server EXTERNO (desligável — sem server/query, não roda). Busca por cidade
+  // no SerpAPI (fonte construída em runtime com as queries dinâmicas).
+  const cityProvider = new SqlServerCityProvider({
+    server: env.DISASTER_DB_SERVER,
+    port: env.DISASTER_DB_PORT,
+    database: env.DISASTER_DB_DATABASE,
+    user: env.DISASTER_DB_USER,
+    password: env.DISASTER_DB_PASSWORD,
+    encrypt: env.DISASTER_DB_ENCRYPT,
+    trustServerCertificate: env.DISASTER_DB_TRUST_CERT,
+    query: env.DISASTER_CITIES_QUERY,
+    maxCities: env.DISASTER_MAX_CITIES,
+  });
+  const collectDisaster = new CollectDisasterUseCase(
+    cityProvider,
+    (queries) =>
+      new SerpApiClient({
+        apiKey: env.SERPAPI_API_KEY,
+        baseUrl: env.SERPAPI_BASE_URL,
+        gl: env.SERPAPI_GL,
+        hl: env.SERPAPI_HL,
+        queries,
+        delayMs: env.SERPAPI_DELAY_MS,
+        maxRetries: env.SERPAPI_MAX_RETRIES,
+      }),
+    articleRepository,
+    { terms: env.disasterQueryTerms, maxAgeHours: env.DISASTER_MAX_AGE_HOURS },
+  );
+  // Triagem da rota de desastres (confirma desastre real/recente; teto próprio).
+  const disasterTriage = new TriageArticlesUseCase(
+    articleRepository,
+    triageLlm,
+    auditLogger,
+    env.LLM_BATCH_SIZE,
+    env.TRIAGE_MIN_SCORE,
+    env.DISASTER_MAX_ANALYZE,
+    TRIAGE_DISASTER_SYSTEM_PROMPT,
+  );
   const classifyArticles = new ClassifyArticlesUseCase(
     articleRepository,
     classificationRepository,
@@ -272,6 +314,9 @@ export function buildContainer() {
     dispatchCommodityQuotes,
     fidcRecipients,
     env.WHATSAPP_INCLUDE_WATCHLIST,
+    collectDisaster,
+    disasterTriage,
+    env.INCLUDE_DISASTER_IN_SUMMARY,
   );
 
   const newsFeedQuery = new NewsFeedQuery(db);

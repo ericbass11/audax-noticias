@@ -42,6 +42,7 @@ export class GenerateSummaryUseCase {
   async execute(
     articleIds: string[],
     watchlistIds: string[] = [],
+    disasterIds: string[] = [],
   ): Promise<GenerateSummaryResult | null> {
     const articles = await this.articleRepository.findByIds(articleIds);
     const classifications = await this.classificationRepository.findCurrentByArticleIds(articleIds);
@@ -65,11 +66,20 @@ export class GenerateSummaryUseCase {
       publishedAt: a.publishedAt,
     }));
 
-    // Sem nada relevante E sem alertas de vigilância → não dispara nada.
-    if (relevant.length === 0 && watchlist.length === 0) return null;
+    // Itens de desastre climático (praças com Cedente/Sacado) para o bloco de risco.
+    const disasterArticles = await this.articleRepository.findByIds(disasterIds);
+    const disaster: WatchlistMessageItem[] = disasterArticles.map((a) => ({
+      id: a.id!,
+      title: a.title,
+      url: a.url,
+      publishedAt: a.publishedAt,
+    }));
+
+    // Sem nada relevante E sem alertas (ANVISA/desastre) → não dispara nada.
+    if (relevant.length === 0 && watchlist.length === 0 && disaster.length === 0) return null;
 
     return {
-      content: this.builder.buildMessage(top, this.webAppUrl, watchlist),
+      content: this.builder.buildMessage(top, this.webAppUrl, watchlist, disaster),
       rankedArticleIds: top.map((s) => s.article.id!),
       relevantArticleIds: relevant.map((s) => s.article.id!),
     };

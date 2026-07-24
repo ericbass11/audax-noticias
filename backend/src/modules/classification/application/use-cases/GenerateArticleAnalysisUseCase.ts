@@ -11,10 +11,11 @@ import {
   ANALYSIS_SYSTEM_PROMPT,
   ANALYSIS_WATCHLIST_SYSTEM_PROMPT,
   ANALYSIS_FIDC_SYSTEM_PROMPT,
+  ANALYSIS_DISASTER_SYSTEM_PROMPT,
   buildAnalysisUserPrompt,
 } from '../../infrastructure/llm/prompts/analysisPrompt.js';
 
-export type AnalysisMode = 'news' | 'watchlist' | 'fidc';
+export type AnalysisMode = 'news' | 'watchlist' | 'fidc' | 'disaster';
 
 interface ParsedAnalysis {
   resumo_executivo?: unknown;
@@ -60,7 +61,9 @@ export class GenerateArticleAnalysisUseCase {
         ? ANALYSIS_WATCHLIST_SYSTEM_PROMPT
         : opts.mode === 'fidc'
           ? ANALYSIS_FIDC_SYSTEM_PROMPT
-          : ANALYSIS_SYSTEM_PROMPT;
+          : opts.mode === 'disaster'
+            ? ANALYSIS_DISASTER_SYSTEM_PROMPT
+            : ANALYSIS_SYSTEM_PROMPT;
     const articles = await this.articleRepository.findByIds(articleIds);
     const classifications = await this.classificationRepository.findCurrentByArticleIds(articleIds);
 

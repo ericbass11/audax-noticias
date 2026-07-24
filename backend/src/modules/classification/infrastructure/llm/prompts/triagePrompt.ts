@@ -85,6 +85,27 @@ REGRAS DE SAÍDA (obrigatório):
 - Forma: {"resultados": [{"id": "<id>", "score": 0}]}
 - Exatamente um objeto por notícia, repetindo o "id".`;
 
+/**
+ * Triagem da rota DESASTRES CLIMÁTICOS. As notícias já foram buscadas por
+ * cidade (praças com Cedente/Sacado da Audax). Aqui a IA confirma que é um
+ * desastre REAL, RECENTE e LOCALIZADO — não uma menção genérica, previsão vaga
+ * ou matéria antiga.
+ */
+export const TRIAGE_DISASTER_SYSTEM_PROMPT = `Você é um filtro de triagem de notícias de DESASTRES CLIMÁTICOS para a Audax Capital, gestora de FIDC. Estas notícias foram buscadas por CIDADE onde a Audax tem Cedente/Sacado — um desastre nessas praças é risco de crédito (o sacado pode não pagar; o recebível do cedente vira risco).
+
+Dê a cada notícia um "score" inteiro 0-100 (pelo título + resumo):
+
+ALTO (80-100): desastre climático REAL e RECENTE afetando uma localidade concreta — enchente/alagamento, seca/estiagem, temporal/vendaval, granizo, geada, deslizamento, incêndio/queimada, chuvas extremas, com dano a pessoas, lavouras, comércio ou infraestrutura. Decreto de emergência/calamidade também é alto.
+
+BAIXO (0-30): previsão do tempo rotineira sem dano, retrospectiva/efeméride, alerta genérico sem evento, nota climática nacional sem localidade, ou assunto que não é desastre.
+
+${FRESHNESS_RULE}
+
+REGRAS DE SAÍDA (obrigatório):
+- Responda SOMENTE com JSON válido, sem markdown/cercas/preâmbulo.
+- Forma: {"resultados": [{"id": "<id>", "score": 0}]}
+- Exatamente um objeto por notícia, repetindo o "id".`;
+
 export function buildTriageUserPrompt(items: TriagePromptItem[], today: string): string {
   return `Hoje é ${today}. Pontue (0-100) cada notícia por RELEVÂNCIA e ATUALIDADE — dê score 0 se for antiga/desatualizada (regra de ATUALIDADE). Retorne um objeto por id no array "resultados".
 

@@ -1,4 +1,5 @@
 import type { CollectNewsUseCase } from '../modules/collection/application/use-cases/CollectNewsUseCase.js';
+import type { CollectDisasterUseCase } from '../modules/collection/application/use-cases/CollectDisasterUseCase.js';
 import type { TriageArticlesUseCase } from '../modules/classification/application/use-cases/TriageArticlesUseCase.js';
 import type { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import type { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
@@ -37,10 +38,11 @@ export interface RunNewsCycleResult {
  * olhamos para não reenviar a mesma história. Alinhado à janela de coleta de
  * cada trilha (news usa 3d p/ cobrir desdobramentos entre ciclos de 08h/18h).
  */
-const HISTORY_WINDOW_DAYS: Record<'news' | 'watchlist' | 'fidc', number> = {
+const HISTORY_WINDOW_DAYS: Record<'news' | 'watchlist' | 'fidc' | 'disaster', number> = {
   news: 3,
   fidc: 7,
   watchlist: 30,
+  disaster: 5,
 };
 
 /**
@@ -74,6 +76,12 @@ export class RunNewsCycleUseCase {
     private readonly fidcRecipients: string[] = [],
     /** Incluir o bloco de alertas ANVISA no WhatsApp? (portal sempre recebe). */
     private readonly includeWatchlistInSummary = false,
+    /** Coleta de desastres climáticos (praças com Cedente/Sacado). */
+    private readonly collectDisaster?: CollectDisasterUseCase,
+    /** Triagem da rota de desastres (confirma desastre real/recente; teto próprio). */
+    private readonly disasterTriage?: TriageArticlesUseCase,
+    /** Incluir o bloco de risco climático no digest do CEO? */
+    private readonly includeDisasterInSummary = true,
   ) {}
 
   async execute(input: RunNewsCycleInput): Promise<RunNewsCycleResult> {
@@ -95,6 +103,17 @@ export class RunNewsCycleUseCase {
       // 1. Coleta: 'news' (janela curta) + rotas extras ('watchlist' ANVISA,
       // 'fidc' mercado), cada uma com janela/teto próprios.
       const collection = await this.collect.execute(run.id!);
+
+      // 1b. Trilha de desastres climáticos: cidades com Cedente/Sacado vêm de um
+      // banco EXTERNO (via CollectDisasterUseCase). Desligável/tolerante.
+      let disasterIds: string[] = [];
+      if (this.collectDisaster) {
+        try {
+          disasterIds = (await this.collectDisaster.execute(run.id!)).savedIds;
+        } catch (err) {
+          console.error('⚠️  Coleta de desastres falhou:', (err as Error).message);
+        }
+      }
 
       // Cura das rotas extras: agrupa notícias do MESMO evento (mesma matéria
       // em vários veículos) e mantém uma por evento.
@@ -126,7 +145,8 @@ export class RunNewsCycleUseCase {
       if (
         collection.savedArticleIds.length === 0 &&
         watchlistIds.length === 0 &&
-        fidcIds.length === 0
+        fidcIds.length === 0 &&
+        disasterIds.length === 0
       ) {
         run.complete({ collected: collection.collected, deduped: 0, triaged: 0, classified: 0 });
         await this.runs.update(run);
@@ -214,11 +234,36 @@ export class RunNewsCycleUseCase {
         }
       }
 
-      // 5. Resumo executivo: notícias relevantes (+ bloco ANVISA só se o flag
-      // estiver ligado). Os alertas seguem no portal independentemente.
+      // 4c. Desastres climáticos: triagem (confirma desastre real/recente/
+      // localizado) → não reenviar os já vistos → análise de risco de crédito
+      // por praça (portal). O bloco entra no digest do CEO conforme o flag.
+      if (disasterIds.length > 0 && this.disasterTriage) {
+        try {
+          disasterIds = (await this.disasterTriage.execute(disasterIds)).survivorIds;
+        } catch (err) {
+          console.error('⚠️  Triagem de desastres falhou:', (err as Error).message);
+        }
+      }
+      if (disasterIds.length > 0) {
+        disasterIds = await this.dedupeHistory.execute(disasterIds, {
+          track: 'disaster',
+          sinceDays: HISTORY_WINDOW_DAYS.disaster,
+        });
+      }
+      if (disasterIds.length > 0) {
+        try {
+          await this.analyze.execute(disasterIds, { mode: 'disaster' });
+        } catch (err) {
+          console.error('⚠️  Falha na análise de desastres:', (err as Error).message);
+        }
+      }
+
+      // 5. Resumo executivo: notícias relevantes (+ bloco ANVISA e/ou risco
+      // climático só se os flags estiverem ligados). Alertas seguem no portal.
       const summary = await this.generateSummary.execute(
         survivorIds,
         this.includeWatchlistInSummary ? watchlistIds : [],
+        this.includeDisasterInSummary ? disasterIds : [],
       );
       if (!summary) {
         await this.runs.update(run);
