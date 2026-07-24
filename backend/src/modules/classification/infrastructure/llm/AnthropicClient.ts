@@ -16,8 +16,13 @@ export interface AnthropicConfig {
  * Cliente que chama o Claude (Anthropic) DIRETO, via SDK oficial.
  *
  * Alternativa ao gateway LiteLLM, selecionável por LLM_PROVIDER=anthropic.
- * Notas de compatibilidade com a família Opus 4.x:
- * - NÃO enviamos `temperature` (Opus 4.8/4.7 rejeitam com 400).
+ * Notas de compatibilidade:
+ * - NÃO enviamos `temperature` (Opus 4.8/4.7 e Sonnet 5 rejeitam com 400).
+ * - Sonnet 5 / Opus 4.x ligam ADAPTIVE THINKING por padrão quando `thinking`
+ *   é omitido; mantemos DESLIGADO para preservar custo/latência e não truncar
+ *   respostas curtas (ex.: chat) — o pipeline quer JSON determinístico, não
+ *   raciocínio caro. Haiku/older ignoram (omitir já é sem thinking); Fable
+ *   rejeitaria `disabled`, por isso só enviamos aos modelos que o aceitam.
  * - JSON é garantido pelo prompt (que exige "somente JSON") + parse defensivo
  *   no use case; não usamos structured outputs aqui para manter simples.
  */
@@ -32,6 +37,13 @@ export class AnthropicClient implements LlmClient, ChatLlmClient {
     return this.config.model;
   }
 
+  /** Desliga o thinking nos modelos que o ligam por padrão (Sonnet 5 / Opus 4.x). */
+  private thinkingOff(): { thinking: { type: 'disabled' } } | Record<string, never> {
+    return /^claude-(sonnet-5|opus-4-)/.test(this.config.model)
+      ? { thinking: { type: 'disabled' } }
+      : {};
+  }
+
   async complete(req: CompletionRequest): Promise<CompletionResult> {
     if (!this.config.apiKey) {
       throw new Error('ANTHROPIC_API_KEY ausente — não é possível classificar.');
@@ -41,6 +53,7 @@ export class AnthropicClient implements LlmClient, ChatLlmClient {
     const message = await this.client.messages.create({
       model: this.config.model,
       max_tokens: req.maxTokens ?? 8192,
+      ...this.thinkingOff(),
       system: req.system,
       messages: [{ role: 'user', content: req.user }],
     });
@@ -74,6 +87,7 @@ export class AnthropicClient implements LlmClient, ChatLlmClient {
     const stream = this.client.messages.stream({
       model: this.config.model,
       max_tokens: 1024,
+      ...this.thinkingOff(),
       system,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
