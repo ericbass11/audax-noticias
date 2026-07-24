@@ -1,9 +1,11 @@
 # Produção (VPS interna) — stack via Docker, atrás de um Nginx.
 # A Evolution API é EXTERNA (já rodando na VPS); este stack NÃO sobe uma nova.
+# A VPS já usa 80/81/443 (nginx-proxy-manager), então o Nginx publica na 8090.
 # Uso na VPS:
 #   cp .env.example .env   # preencher chaves, WEB_APP_URL, EVOLUTION_BASE_URL (a Evolution existente)
 #   docker compose -f docker-compose.prod.yml up -d --build
-# Acesso: portal em http://IP-DA-VPS  (Nginx:80). WhatsApp/QR = na sua Evolution já existente.
+# Acesso: portal em http://IP-DA-VPS:8090 (ou via um Proxy Host do nginx-proxy-manager
+# apontando para audax-nginx:80). WhatsApp/QR = na sua Evolution já existente.
 services:
   postgres:
     image: postgres:16-alpine
@@ -79,8 +81,10 @@ services:
     restart: unless-stopped
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    # A VPS já usa 80/81/443 (nginx-proxy-manager). Publicamos numa porta livre.
+    # Acesso: http://IP-DA-VPS:8090 — ou aponte um Proxy Host do NPM para audax-nginx:80.
     ports:
-      - '80:80'
+      - '8090:80'
     depends_on:
       - frontend
       - backend

@@ -1,15 +1,19 @@
 # Deploy na VPS (Docker)
 
 Sobe Postgres, Redis, backend, portal Next e Nginx via Docker, atrás de um único
-Nginx na porta 80. **A Evolution API NÃO é subida por este stack** — ela já roda
-na VPS; o backend apenas se conecta à existente.
+Nginx na porta **8090** (a VPS já usa 80/81/443 no nginx-proxy-manager).
+**A Evolution API NÃO é subida por este stack** — ela já roda na VPS; o backend
+apenas se conecta à existente.
 
-- Portal + API: `http://IP-DA-VPS`  (Nginx roteia `/` → portal e `/api` → backend)
+- Portal + API: `http://IP-DA-VPS:8090`  (Nginx roteia `/` → portal e `/api` → backend)
+- Opcional: em vez da 8090, aponte um **Proxy Host** do nginx-proxy-manager
+  (admin em `:81`) para `audax-nginx:80` e sirva por um domínio/HTTPS.
 - WhatsApp/QR: na **sua Evolution já existente** (não é gerenciada aqui).
 
 ## 1. Pré-requisitos na VPS
 - Linux com **Docker** e **Docker Compose plugin** (`docker compose version`).
-- Porta liberada no firewall: **80** (portal). A Evolution já tem a porta dela.
+- Porta livre no host: **8090** (portal). 80/81/443 estão com o nginx-proxy-manager;
+  se preferir servir por domínio/HTTPS, use o NPM em vez de abrir a 8090 no firewall.
 - **Evolution API já online e conectada** (instância WhatsApp em estado `open`),
   acessível a partir dos containers (ex.: publicada na porta 8080 do host).
 - Fuso: o app usa `TZ=America/Sao_Paulo` (crons 08h/18h) independente do relógio do host.
@@ -28,7 +32,7 @@ Edite o `.env` e preencha:
     `http://host.docker.internal:8080` (o compose já mapeia esse host).
   - `EVOLUTION_API_KEY` — a **mesma** chave (AUTHENTICATION_API_KEY) da sua Evolution.
   - `EVOLUTION_INSTANCE` — o **nome da instância** já conectada (ex.: `audax`).
-- `WEB_APP_URL=http://IP-DA-VPS`
+- `WEB_APP_URL=http://IP-DA-VPS:8090` (ou o domínio, se usar o nginx-proxy-manager)
 - `POSTGRES_PASSWORD` — troque a senha padrão.
 - Destinatários (quando for pra valer):
   - `EVOLUTION_RECIPIENTS` — digest de notícias (CEO).
@@ -65,10 +69,10 @@ conexão, ajuste `EVOLUTION_BASE_URL` (a Evolution precisa estar acessível a pa
 do container — `host.docker.internal:8080` cobre o caso dela estar publicada no host).
 
 ## 5. Testar
-- Portal: `http://IP-DA-VPS`
+- Portal: `http://IP-DA-VPS:8090`
 - Disparo manual de um ciclo:
 ```bash
-curl -X POST http://IP-DA-VPS/api/trigger -H 'Content-Type: application/json' -d '{"force":true}'
+curl -X POST http://IP-DA-VPS:8090/api/trigger -H 'Content-Type: application/json' -d '{"force":true}'
 ```
 - Os crons rodam sozinhos às **08h e 18h** (BRT). Como a VPS fica ligada, não há
   disparos perdidos (diferente do notebook).
