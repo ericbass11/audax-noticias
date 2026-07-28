@@ -330,8 +330,10 @@ export function buildContainer() {
     dispatchCommodityQuotes,
     fidcRecipients,
     env.WHATSAPP_INCLUDE_WATCHLIST,
-    collectDisaster,
-    disasterTriage,
+    // Trilha de desastres desligável por flag (DISASTER_ENABLED). Passando
+    // undefined, o ciclo não coleta nem inclui o bloco no digest.
+    env.DISASTER_ENABLED ? collectDisaster : undefined,
+    env.DISASTER_ENABLED ? disasterTriage : undefined,
     env.INCLUDE_DISASTER_IN_SUMMARY,
     env.DISASTER_MAX_ITEMS,
     env.DISASTER_ONLY_MORNING,
