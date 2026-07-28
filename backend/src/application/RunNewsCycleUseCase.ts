@@ -31,6 +31,9 @@ export interface RunNewsCycleResult {
   summaryId?: string;
   dispatch?: { sent: number; failed: number; skipped: number };
   reason?: string;
+  /** Um digest REAL (notícias e/ou FIDC) foi enviado ao preview? Só então faz
+   *  sentido promover ao grupo depois. */
+  dispatchedToPreview?: boolean;
 }
 
 /**
@@ -115,6 +118,10 @@ export class RunNewsCycleUseCase {
         console.error('⚠️  Falha no boletim de cotações:', (err as Error).message);
       }
 
+      // Marca se algum digest REAL (notícias/FIDC) foi ao preview — só então a
+      // promoção ao grupo faz sentido (não promover turno vazio).
+      let dispatchedToPreview = false;
+
       // 1. Coleta: 'news' (janela curta) + rotas extras ('watchlist' ANVISA,
       // 'fidc' mercado), cada uma com janela/teto próprios.
       const collection = await this.collect.execute(run.id!);
@@ -165,6 +172,15 @@ export class RunNewsCycleUseCase {
         fidcIds.length === 0 &&
         disasterIds.length === 0
       ) {
+        // Distingue "sem notícias" de FALHA DE COLETA: se todas as fontes de
+        // notícias caíram (provável blip de rede), lança erro para o worker
+        // reprocessar (BullMQ, com backoff) em vez de concluir vazio e disparar
+        // um digest sem conteúdo.
+        if (collection.newsCollectionFailed) {
+          throw new Error(
+            'coleta de notícias falhou: todas as fontes indisponíveis (rede/serviço).',
+          );
+        }
         run.complete({ collected: collection.collected, deduped: 0, triaged: 0, classified: 0 });
         await this.runs.update(run);
         return {
@@ -246,6 +262,7 @@ export class RunNewsCycleUseCase {
             'Audax | Mercado FIDC & Regulação',
             this.previewMode ? this.previewRecipients : this.fidcRecipients,
           );
+          dispatchedToPreview = true;
         } catch (err) {
           console.error('⚠️  Falha no fluxo FIDC:', (err as Error).message);
         }
@@ -308,6 +325,7 @@ export class RunNewsCycleUseCase {
           triaged: survivorIds.length,
           classified,
           reason: 'sem itens acima do piso de relevância',
+          dispatchedToPreview,
         };
       }
 
@@ -338,6 +356,7 @@ export class RunNewsCycleUseCase {
         persisted.id!,
         this.previewMode ? { recipients: this.previewRecipients } : {},
       );
+      if (dispatchResult.sent > 0) dispatchedToPreview = true;
 
       return {
         periodKey: input.periodKey,
@@ -352,6 +371,7 @@ export class RunNewsCycleUseCase {
           failed: dispatchResult.failed,
           skipped: dispatchResult.skipped,
         },
+        dispatchedToPreview,
       };
     } catch (err) {
       run.fail((err as Error).message);

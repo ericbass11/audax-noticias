@@ -17,6 +17,9 @@ export interface CollectNewsResult {
   deduped: number; // novos do fluxo 'news'
   savedArticleIds: string[]; // novos do fluxo 'news' (vão para triagem)
   byTrack: Partial<Record<ArticleTrack, string[]>>; // novos por rota extra
+  // TODAS as fontes do fluxo 'news' falharam (provável queda de rede). Sinaliza
+  // ao ciclo que "0 notícias" foi por FALHA, não por não haver nada novo.
+  newsCollectionFailed: boolean;
 }
 
 /**
@@ -62,6 +65,8 @@ export class CollectNewsUseCase {
       deduped: news.savedIds.length,
       savedArticleIds: news.savedIds,
       byTrack,
+      // Falha total = havia fontes e TODAS falharam.
+      newsCollectionFailed: news.sourcesTotal > 0 && news.sourcesFailed === news.sourcesTotal,
     };
   }
 
@@ -72,12 +77,21 @@ export class CollectNewsUseCase {
     track: ArticleTrack,
     runId: string,
     dropUndated = false,
-  ): Promise<{ collected: number; recent: number; savedIds: string[] }> {
-    if (sources.length === 0) return { collected: 0, recent: 0, savedIds: [] };
+  ): Promise<{
+    collected: number;
+    recent: number;
+    savedIds: string[];
+    sourcesTotal: number;
+    sourcesFailed: number;
+  }> {
+    if (sources.length === 0)
+      return { collected: 0, recent: 0, savedIds: [], sourcesTotal: 0, sourcesFailed: 0 };
 
     const fetched = await Promise.allSettled(sources.map((s) => s.fetch()));
+    let sourcesFailed = 0;
     const normalized = fetched.flatMap((r, i) => {
       if (r.status === 'fulfilled') return r.value;
+      sourcesFailed++;
       console.error(`⚠️  Fonte "${sources[i]?.name}" falhou:`, r.reason?.message ?? r.reason);
       return [];
     });
@@ -108,7 +122,13 @@ export class CollectNewsUseCase {
     const fresh = uniqueInBatch.filter((a) => !existing.has(a.contentHash));
 
     const saved = await this.articleRepository.saveNew(fresh);
-    return { collected, recent: recent.length, savedIds: saved.map((a) => a.id!).filter(Boolean) };
+    return {
+      collected,
+      recent: recent.length,
+      savedIds: saved.map((a) => a.id!).filter(Boolean),
+      sourcesTotal: sources.length,
+      sourcesFailed,
+    };
   }
 
   private filterRecent(

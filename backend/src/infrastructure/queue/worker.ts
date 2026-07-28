@@ -23,10 +23,17 @@ export function startWorker(container: Container): Worker<NewsJob> {
           triggerType: data.triggerType,
           force: data.force,
         });
+        // Falha (ex.: coleta caiu por queda de rede) → LANÇA para o BullMQ
+        // reprocessar (attempts + backoff). Assim um blip de rede não vira turno
+        // perdido: ele tenta de novo e pega a rede quando ela voltar.
+        if (result.status === 'failed') {
+          throw new Error(`Ciclo ${data.periodKey} falhou: ${result.reason ?? 'motivo desconhecido'}`);
+        }
         console.log(`✅ Ciclo ${data.periodKey}:`, result);
-        // Modo preview: já disparou ao número pessoal; agenda a promoção ao
-        // grupo após o atraso configurado (delay do BullMQ sobrevive a restart).
-        if (previewMode && result.status === 'completed') {
+        // Modo preview: agenda a promoção ao grupo SÓ se um digest real (notícias/
+        // FIDC) foi ao número pessoal — não promove turno vazio. O delay do BullMQ
+        // sobrevive a restart.
+        if (previewMode && result.status === 'completed' && result.dispatchedToPreview) {
           const delayMs = env.PREVIEW_PROMOTE_DELAY_MINUTES * 60 * 1000;
           await enqueuePromote(data.periodKey, delayMs);
           console.log(

@@ -58,6 +58,7 @@ export class SerpApiClient implements NewsSource {
 
     const delayMs = this.config.delayMs ?? 2000;
     const all: NormalizedArticleInput[] = [];
+    let failures = 0;
     for (let i = 0; i < this.config.queries.length; i++) {
       const query = this.config.queries[i]!;
       // Espaça as requisições (fila) para não estourar o rate limit do SerpAPI.
@@ -65,10 +66,37 @@ export class SerpApiClient implements NewsSource {
       try {
         all.push(...(await this.search(query)));
       } catch (err) {
+        failures++;
         console.error(`⚠️  SerpAPI falhou para a query "${query}":`, (err as Error).message);
       }
     }
+    // Se TODAS as queries falharam, é quase certo uma queda de rede/serviço —
+    // não devolva "0 resultados" (que o ciclo trataria como "sem notícias").
+    // Lança para o ciclo poder reprocessar (o worker reencaminha ao BullMQ).
+    if (failures > 0 && failures === this.config.queries.length) {
+      throw new Error(`SerpAPI: todas as ${failures} queries falharam (rede/serviço indisponível).`);
+    }
     return all;
+  }
+
+  /**
+   * `fetch` com retry curto para erros de REDE (fetch failed / timeout): um blip
+   * de poucos segundos se recupera aqui. Quedas mais longas são tratadas pelo
+   * retry no nível do job (BullMQ), então aqui desistimos rápido (2 tentativas).
+   */
+  private async fetchWithNetworkRetry(url: string, query: string): Promise<Response> {
+    const netRetries = 2;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fetch(url, { signal: AbortSignal.timeout(20000) });
+      } catch (err) {
+        if (attempt >= netRetries) throw err;
+        console.warn(
+          `⏳ SerpAPI erro de rede na query "${query}" (${(err as Error).message}) — retry ${attempt + 1}/${netRetries} em 2s.`,
+        );
+        await sleep(2000);
+      }
+    }
   }
 
   private async search(query: string): Promise<NormalizedArticleInput[]> {
@@ -81,11 +109,10 @@ export class SerpApiClient implements NewsSource {
     });
 
     const maxRetries = this.config.maxRetries ?? 4;
+    const url = `${this.config.baseUrl}?${params.toString()}`;
     let res: Response | undefined;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      res = await fetch(`${this.config.baseUrl}?${params.toString()}`, {
-        signal: AbortSignal.timeout(20000),
-      });
+      res = await this.fetchWithNetworkRetry(url, query);
       // 429 = rate limit: espera crescente (5s, 10s, 20s, 40s) e tenta de novo.
       if (res.status === 429 && attempt < maxRetries) {
         const backoff = 5000 * 2 ** attempt;
