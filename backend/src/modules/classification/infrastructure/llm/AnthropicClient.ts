@@ -54,7 +54,12 @@ export class AnthropicClient implements LlmClient, ChatLlmClient {
       model: this.config.model,
       max_tokens: req.maxTokens ?? 8192,
       ...this.thinkingOff(),
-      system: req.system,
+      // Prompt caching: o system prompt é CONSTANTE entre chamadas (triagem/
+      // classificação/análise reusam o mesmo por modo), então marcamos o bloco
+      // para cache — as chamadas seguintes leem esse prefixo a ~10% do custo de
+      // input (TTL ~5 min). Se o prompt for menor que o mínimo cacheável, a
+      // Anthropic simplesmente ignora (sem erro).
+      system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: req.user }],
     });
     const latencyMs = Math.round(performance.now() - startedAt);

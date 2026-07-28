@@ -329,9 +329,12 @@ export class RunNewsCycleUseCase {
         };
       }
 
-      // 6. Análise profunda das relevantes (portal). Tolerante a falha.
+      // 6. Análise profunda (portal). ECONOMIA: analisa só as notícias que
+      // REALMENTE aparecem (top-N do digest = `rankedArticleIds`), em vez de
+      // todas ≥ piso de relevância — corta o nº de análises Sonnet por ciclo.
+      // Tolerante a falha.
       try {
-        await this.analyze.execute(summary.relevantArticleIds);
+        await this.analyze.execute(summary.rankedArticleIds);
       } catch (err) {
         console.error('⚠️  Falha na análise profunda (portal):', (err as Error).message);
       }

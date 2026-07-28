@@ -33,6 +33,14 @@ export interface GenerateArticleAnalysisResult {
 const AREA_KEYS = ['comercial', 'cobranca', 'operacoes', 'risco', 'compliance'] as const;
 
 /**
+ * Teto de caracteres do CORPO enviado à análise (economia de tokens de input).
+ * O miolo da notícia (lide + fatos) está no começo; a cauda (relacionados,
+ * rodapé, comentários) quase não muda a análise e infla o custo do Sonnet.
+ * O texto COMPLETO continua salvo em `sourceText` (para o chat do portal).
+ */
+const MAX_ANALYSIS_BODY_CHARS = 8000;
+
+/**
  * GenerateArticleAnalysisUseCase — para cada notícia relevante: lê o CORPO do
  * artigo (quando possível) e gera, via LLM, a análise aplicada à Audax —
  * resumo executivo, impacto por área e ações. É o conteúdo do portal.
@@ -91,7 +99,8 @@ export class GenerateArticleAnalysisUseCase {
         category: cls?.category ?? article.rawCategory ?? null,
         impact: cls?.impact ?? null,
         publishedAt: formatPublishedAtBR(article.publishedAt),
-        body: fetched.text,
+        // Corta o corpo para a análise (economia); texto completo fica em sourceText.
+        body: fetched.text?.slice(0, MAX_ANALYSIS_BODY_CHARS) ?? fetched.text,
       });
 
       try {
