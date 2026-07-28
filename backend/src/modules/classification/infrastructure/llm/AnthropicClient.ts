@@ -76,6 +76,9 @@ export class AnthropicClient implements LlmClient, ChatLlmClient {
       latencyMs,
       tokensInput: message.usage?.input_tokens ?? null,
       tokensOutput: message.usage?.output_tokens ?? null,
+      // Prompt caching: leitura do prefixo cacheado e criação/escrita do cache.
+      tokensCacheRead: message.usage?.cache_read_input_tokens ?? null,
+      tokensCacheWrite: message.usage?.cache_creation_input_tokens ?? null,
       raw: message,
     };
   }

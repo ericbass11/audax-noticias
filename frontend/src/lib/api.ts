@@ -1,4 +1,4 @@
-import type { NewsDetail, NewsResponse } from './types';
+import type { CostReport, NewsDetail, NewsResponse } from './types';
 
 /**
  * Base da API. Duas origens:
@@ -49,6 +49,13 @@ export async function fetchCategories(): Promise<string[]> {
   if (!res.ok) return [];
   const data = (await res.json()) as { categories: string[] };
   return data.categories ?? [];
+}
+
+/** Relatório de custo/tokens do LLM (dashboard de custos). USD é ESTIMATIVA. */
+export async function fetchCostReport(): Promise<CostReport> {
+  const res = await fetch(`${API_URL}/api/costs`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`Falha ao carregar custos (HTTP ${res.status}).`);
+  return res.json();
 }
 
 /** Dispara um ciclo manual (202). */

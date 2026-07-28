@@ -18,6 +18,9 @@ export interface CompletionResult {
   latencyMs: number;
   tokensInput: number | null;
   tokensOutput: number | null;
+  /** Tokens de cache de prompt (quando o provedor reporta). */
+  tokensCacheRead?: number | null;
+  tokensCacheWrite?: number | null;
   raw: unknown;
 }
 

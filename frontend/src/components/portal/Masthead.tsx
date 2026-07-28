@@ -60,6 +60,11 @@ export function Masthead() {
               Painel
             </Link>
           </li>
+          <li>
+            <Link href="/custos" className="text-muted-foreground hover:text-primary">
+              Custos
+            </Link>
+          </li>
         </ul>
       </nav>
     </header>

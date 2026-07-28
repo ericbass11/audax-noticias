@@ -7,6 +7,8 @@ export interface AuditLogEntry {
   latencyMs?: number | null;
   tokensInput?: number | null;
   tokensOutput?: number | null;
+  tokensCacheRead?: number | null;
+  tokensCacheWrite?: number | null;
   status: 'success' | 'parse_error' | 'error';
   errorMessage?: string | null;
 }

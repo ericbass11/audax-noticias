@@ -35,3 +35,50 @@ export interface NewsAnalysis {
 export interface NewsDetail extends NewsItem {
   analysis: NewsAnalysis | null;
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard de custos (espelha GET /api/costs). USD é ESTIMATIVA.
+// ---------------------------------------------------------------------------
+export interface CostTotals {
+  calls: number;
+  tokensInput: number;
+  tokensOutput: number;
+  tokensCacheRead: number;
+  tokensCacheWrite: number;
+  usd: number;
+}
+
+export interface DailyCost {
+  day: string; // YYYY-MM-DD
+  calls: number;
+  tokensInput: number;
+  tokensOutput: number;
+  usd: number;
+}
+
+export interface ModelCost {
+  calls: number;
+  tokensInput: number;
+  tokensOutput: number;
+  usd: number;
+}
+
+export interface CycleCost {
+  periodKey: string;
+  startedAt: string;
+  finishedAt: string | null;
+  status: string;
+  calls: number;
+  tokensInput: number;
+  tokensOutput: number;
+  tokensCacheRead: number;
+  tokensCacheWrite: number;
+  usd: number;
+  byModel: Record<string, ModelCost>;
+}
+
+export interface CostReport {
+  totals: CostTotals;
+  daily: DailyCost[];
+  cycles: CycleCost[];
+}

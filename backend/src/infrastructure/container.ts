@@ -39,6 +39,8 @@ import { ResendSummaryUseCase } from '../modules/notification/application/use-ca
 
 // Shared + orchestration
 import { DrizzleProcessingRunRepository } from '../modules/shared/infrastructure/DrizzleProcessingRunRepository.js';
+import { DrizzleMetricsRepository } from '../modules/shared/infrastructure/DrizzleMetricsRepository.js';
+import { GetCostReportUseCase } from '../modules/shared/application/GetCostReportUseCase.js';
 import { RunNewsCycleUseCase } from '../application/RunNewsCycleUseCase.js';
 import { DispatchTrackDigestUseCase } from '../application/DispatchTrackDigestUseCase.js';
 import { DispatchCommodityQuotesUseCase } from '../application/DispatchCommodityQuotesUseCase.js';
@@ -59,6 +61,7 @@ export function buildContainer() {
   const summaryRepository = new DrizzleSummaryRepository(db);
   const dispatchRepository = new DrizzleDispatchRepository(db);
   const runRepository = new DrizzleProcessingRunRepository(db);
+  const metricsRepository = new DrizzleMetricsRepository(db);
 
   // --- Fontes de notícia (isoladas atrás de NewsSource) ---
   const sources: NewsSource[] = [
@@ -338,6 +341,9 @@ export function buildContainer() {
 
   const newsFeedQuery = new NewsFeedQuery(db);
 
+  // Dashboard de custos (leitura pura sobre auditoria + runs).
+  const getCostReport = new GetCostReportUseCase(metricsRepository);
+
   return {
     repositories: {
       articleRepository,
@@ -346,9 +352,17 @@ export function buildContainer() {
       summaryRepository,
       dispatchRepository,
       runRepository,
+      metricsRepository,
     },
     queries: { newsFeedQuery },
-    useCases: { runNewsCycle, resendSummary, dispatchSummary, answerNewsChat, promoteToGroup },
+    useCases: {
+      runNewsCycle,
+      resendSummary,
+      dispatchSummary,
+      answerNewsChat,
+      promoteToGroup,
+      getCostReport,
+    },
   };
 }
 

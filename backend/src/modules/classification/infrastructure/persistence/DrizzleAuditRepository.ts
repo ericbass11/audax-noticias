@@ -18,6 +18,8 @@ export class DrizzleAuditRepository implements AuditLogRepository {
       latencyMs: entry.latencyMs ?? null,
       tokensInput: entry.tokensInput ?? null,
       tokensOutput: entry.tokensOutput ?? null,
+      tokensCacheRead: entry.tokensCacheRead ?? null,
+      tokensCacheWrite: entry.tokensCacheWrite ?? null,
       status: entry.status,
       errorMessage: entry.errorMessage ?? null,
     });

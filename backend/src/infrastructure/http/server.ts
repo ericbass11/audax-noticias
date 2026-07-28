@@ -5,6 +5,7 @@ import { healthRoutes } from './routes/health.js';
 import { triggerRoutes } from './routes/trigger.js';
 import { newsRoutes } from './routes/news.js';
 import { summaryRoutes } from './routes/summaries.js';
+import { costRoutes } from './routes/costs.js';
 
 /**
  * Monta a API Fastify. A leitura (news/summaries) alimenta o dashboard; o
@@ -20,6 +21,7 @@ export async function buildServer(container: Container): Promise<FastifyInstance
   await app.register(async (instance) => triggerRoutes(instance));
   await app.register(async (instance) => newsRoutes(instance, container));
   await app.register(async (instance) => summaryRoutes(instance, container));
+  await app.register(async (instance) => costRoutes(instance, container));
 
   return app;
 }

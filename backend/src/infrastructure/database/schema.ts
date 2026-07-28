@@ -145,6 +145,10 @@ export const llmAuditLogs = pgTable('llm_audit_logs', {
   latencyMs: integer('latency_ms'),
   tokensInput: integer('tokens_input'),
   tokensOutput: integer('tokens_output'),
+  // Tokens de cache de prompt (prompt caching): leitura do prefixo cacheado e
+  // escrita/criação do cache. Nullable — nem todo provedor/chamada os reporta.
+  tokensCacheRead: integer('tokens_cache_read'),
+  tokensCacheWrite: integer('tokens_cache_write'),
   status: text('status').notNull(), // 'success' | 'parse_error' | 'error'
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

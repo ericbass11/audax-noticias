@@ -119,6 +119,8 @@ export class GenerateArticleAnalysisUseCase {
             latencyMs: completion.latencyMs,
             tokensInput: completion.tokensInput,
             tokensOutput: completion.tokensOutput,
+            tokensCacheRead: completion.tokensCacheRead,
+            tokensCacheWrite: completion.tokensCacheWrite,
             status: 'parse_error',
             errorMessage: 'Análise: resposta não é JSON no formato esperado.',
           });
@@ -149,6 +151,8 @@ export class GenerateArticleAnalysisUseCase {
           latencyMs: completion.latencyMs,
           tokensInput: completion.tokensInput,
           tokensOutput: completion.tokensOutput,
+          tokensCacheRead: completion.tokensCacheRead,
+          tokensCacheWrite: completion.tokensCacheWrite,
           status: 'success',
         });
 
