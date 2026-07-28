@@ -7,13 +7,13 @@ export interface ArticleListFilter {
   limit?: number;
 }
 
-/** Referência leve (id + título) de uma notícia já analisada/enviada. */
+/** Referência leve (id + título) de uma notícia já surfada/enviada. */
 export interface ArticleTitleRef {
   id: string;
   title: string;
 }
 
-export interface RecentAnalyzedQuery {
+export interface RecentSurfacedQuery {
   track: ArticleTrack;
   /** Janela para trás, em dias (compara pela data de coleta). */
   sinceDays: number;
@@ -45,9 +45,15 @@ export interface ArticleRepository {
   list(filter: ArticleListFilter): Promise<Article[]>;
 
   /**
-   * Notícias de uma trilha que JÁ foram analisadas (surfadas no portal/digest)
+   * Marca as notícias como surfadas (expostas em um digest/portal) — grava
+   * `surfaced_at = now()` apenas nas que ainda não tinham. Idempotente.
+   */
+  markSurfaced(ids: string[]): Promise<void>;
+
+  /**
+   * Notícias de uma trilha que JÁ foram surfadas (expostas no portal/digest)
    * dentro da janela — base para o dedup contra o histórico (não reenviar a
    * mesma história em dias diferentes). Mais recentes primeiro.
    */
-  findRecentAnalyzed(query: RecentAnalyzedQuery): Promise<ArticleTitleRef[]>;
+  findRecentSurfaced(query: RecentSurfacedQuery): Promise<ArticleTitleRef[]>;
 }

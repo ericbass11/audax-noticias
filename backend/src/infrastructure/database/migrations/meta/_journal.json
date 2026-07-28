@@ -43,6 +43,13 @@
       "when": 1750000005000,
       "tag": "0005_audit_cache_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1750000006000,
+      "tag": "0006_article_surfaced_at",
+      "breakpoints": true
     }
   ]
 }

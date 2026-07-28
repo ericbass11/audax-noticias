@@ -56,7 +56,7 @@ export class DedupeAgainstHistoryUseCase {
     let userPrompt = '';
 
     try {
-      const history = await this.articleRepository.findRecentAnalyzed({
+      const history = await this.articleRepository.findRecentSurfaced({
         track: opts.track,
         sinceDays: opts.sinceDays,
         excludeIds: candidateIds,

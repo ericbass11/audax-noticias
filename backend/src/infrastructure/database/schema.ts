@@ -63,6 +63,9 @@ export const newsArticles = pgTable(
     rawCategory: text('raw_category'),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     collectedAt: timestamp('collected_at', { withTimezone: true }).notNull().defaultNow(),
+    // Momento em que a notícia foi "surfada" (entrou em um digest/portal). Sinal
+    // de exposição independente da análise profunda — base do dedup histórico.
+    surfacedAt: timestamp('surfaced_at', { withTimezone: true }),
     runId: uuid('run_id').references(() => processingRuns.id),
   },
   (table) => ({

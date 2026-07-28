@@ -314,6 +314,7 @@ export function buildContainer() {
   );
 
   const runNewsCycle = new RunNewsCycleUseCase(
+    articleRepository,
     runRepository,
     collectNews,
     triageArticles,
@@ -339,6 +340,9 @@ export function buildContainer() {
     env.DISASTER_ONLY_MORNING,
     env.evolutionRecipientsPreview,
     env.PREVIEW_ENABLED,
+    // Liga/desliga a análise profunda das 5 áreas (economia de Sonnet). A
+    // marcação de surfada e o resumo/digest NÃO dependem disso.
+    env.ANALYSIS_ENABLED,
   );
 
   const newsFeedQuery = new NewsFeedQuery(db);

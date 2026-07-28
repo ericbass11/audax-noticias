@@ -1,12 +1,12 @@
-import { and, desc, eq, exists, gte, inArray, notInArray, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import type { Database } from '../../../../infrastructure/database/client.js';
-import { articleAnalyses, newsArticles } from '../../../../infrastructure/database/schema.js';
+import { newsArticles } from '../../../../infrastructure/database/schema.js';
 import { Article } from '../../domain/entities/Article.js';
 import type {
   ArticleListFilter,
   ArticleRepository,
   ArticleTitleRef,
-  RecentAnalyzedQuery,
+  RecentSurfacedQuery,
 } from '../../domain/repositories/ArticleRepository.js';
 import { ArticleMapper } from '../mappers/ArticleMapper.js';
 
@@ -74,23 +74,24 @@ export class DrizzleArticleRepository implements ArticleRepository {
     return rows.map(ArticleMapper.toDomain);
   }
 
-  async findRecentAnalyzed(query: RecentAnalyzedQuery): Promise<ArticleTitleRef[]> {
+  async markSurfaced(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    // Só marca quem ainda não tinha surfaced_at → idempotente (preserva a data
+    // da PRIMEIRA exposição, que é o que interessa ao dedup histórico).
+    await this.db
+      .update(newsArticles)
+      .set({ surfacedAt: new Date() })
+      .where(and(inArray(newsArticles.id, ids), isNull(newsArticles.surfacedAt)));
+  }
+
+  async findRecentSurfaced(query: RecentSurfacedQuery): Promise<ArticleTitleRef[]> {
     const cutoff = new Date(Date.now() - query.sinceDays * 24 * 60 * 60 * 1000);
     const conditions = [
       eq(newsArticles.track, query.track),
       gte(newsArticles.collectedAt, cutoff),
-      // Só as que JÁ foram analisadas (surfadas no portal/digest).
-      exists(
-        this.db
-          .select({ one: sql`1` })
-          .from(articleAnalyses)
-          .where(
-            and(
-              eq(articleAnalyses.articleId, newsArticles.id),
-              eq(articleAnalyses.isCurrent, true),
-            ),
-          ),
-      ),
+      // Só as que JÁ foram surfadas (expostas no portal/digest) na janela.
+      isNotNull(newsArticles.surfacedAt),
+      gte(newsArticles.surfacedAt, cutoff),
     ];
     if (query.excludeIds.length > 0) {
       conditions.push(notInArray(newsArticles.id, query.excludeIds));

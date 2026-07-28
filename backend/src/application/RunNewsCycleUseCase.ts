@@ -13,6 +13,7 @@ import { ExecutiveSummary } from '../modules/notification/domain/entities/Execut
 import type { SummaryRepository } from '../modules/notification/domain/repositories/SummaryRepository.js';
 import type { ProcessingRunRepository } from '../modules/shared/domain/ProcessingRunRepository.js';
 import type { TriggerType } from '../modules/shared/domain/ProcessingRun.js';
+import type { ArticleRepository } from '../modules/collection/domain/repositories/ArticleRepository.js';
 
 export interface RunNewsCycleInput {
   periodKey: string;
@@ -59,6 +60,8 @@ const HISTORY_WINDOW_DAYS: Record<'news' | 'watchlist' | 'fidc' | 'disaster', nu
  */
 export class RunNewsCycleUseCase {
   constructor(
+    /** Persistência de notícias — usada para MARCAR as IDs surfadas (digests). */
+    private readonly articleRepository: ArticleRepository,
     private readonly runs: ProcessingRunRepository,
     private readonly collect: CollectNewsUseCase,
     private readonly triage: TriageArticlesUseCase,
@@ -93,6 +96,9 @@ export class RunNewsCycleUseCase {
      *  para estes (número pessoal); a promoção ao grupo é feita depois. */
     private readonly previewRecipients: string[] = [],
     private readonly previewEnabled = false,
+    /** Liga/desliga a análise profunda das 5 áreas (economia de Sonnet). Com
+     *  false, pula fetch+LLM; a MARCAÇÃO de surfada e o resumo continuam. */
+    private readonly analysisEnabled = true,
   ) {}
 
   /** Modo preview ativo? (todos os disparos do ciclo vão ao número pessoal). */
@@ -228,11 +234,15 @@ export class RunNewsCycleUseCase {
 
       // 4. Vigilância (ANVISA): pula a triagem; análise focada em NFe/recebível.
       if (watchlistIds.length > 0) {
-        try {
-          await this.analyze.execute(watchlistIds, { mode: 'watchlist' });
-        } catch (err) {
-          console.error('⚠️  Falha na análise de vigilância (ANVISA):', (err as Error).message);
+        if (this.analysisEnabled) {
+          try {
+            await this.analyze.execute(watchlistIds, { mode: 'watchlist' });
+          } catch (err) {
+            console.error('⚠️  Falha na análise de vigilância (ANVISA):', (err as Error).message);
+          }
         }
+        // Marca como surfadas SEMPRE (independe da análise) — sinal do dedup histórico.
+        await this.articleRepository.markSurfaced(watchlistIds);
       }
 
       // 4b. Rota FIDC (2º fluxo): triagem de relevância (mantém o núcleo do
@@ -254,7 +264,10 @@ export class RunNewsCycleUseCase {
       }
       if (fidcIds.length > 0) {
         try {
-          await this.analyze.execute(fidcIds, { mode: 'fidc' });
+          // Análise profunda condicional; o digest FIDC não depende dela.
+          if (this.analysisEnabled) {
+            await this.analyze.execute(fidcIds, { mode: 'fidc' });
+          }
           await this.dispatchTrackDigest.execute(
             run.id!,
             `${input.periodKey}:fidc`,
@@ -266,6 +279,8 @@ export class RunNewsCycleUseCase {
         } catch (err) {
           console.error('⚠️  Falha no fluxo FIDC:', (err as Error).message);
         }
+        // Marca como surfadas SEMPRE (independe da análise) — sinal do dedup histórico.
+        await this.articleRepository.markSurfaced(fidcIds);
       }
 
       // 4c. Desastres climáticos: triagem (confirma desastre real/recente/
@@ -332,12 +347,17 @@ export class RunNewsCycleUseCase {
       // 6. Análise profunda (portal). ECONOMIA: analisa só as notícias que
       // REALMENTE aparecem (top-N do digest = `rankedArticleIds`), em vez de
       // todas ≥ piso de relevância — corta o nº de análises Sonnet por ciclo.
-      // Tolerante a falha.
-      try {
-        await this.analyze.execute(summary.rankedArticleIds);
-      } catch (err) {
-        console.error('⚠️  Falha na análise profunda (portal):', (err as Error).message);
+      // Condicional (ANALYSIS_ENABLED); tolerante a falha.
+      if (this.analysisEnabled) {
+        try {
+          await this.analyze.execute(summary.rankedArticleIds);
+        } catch (err) {
+          console.error('⚠️  Falha na análise profunda (portal):', (err as Error).message);
+        }
       }
+      // Marca as notícias do digest como surfadas SEMPRE (independe da análise)
+      // — é o sinal que o dedup histórico usa para não reenviar em dias futuros.
+      await this.articleRepository.markSurfaced(summary.rankedArticleIds);
 
       // 7. PERSISTE o resumo antes de qualquer envio (idempotente por periodKey).
       const persisted = await this.summaries.save(

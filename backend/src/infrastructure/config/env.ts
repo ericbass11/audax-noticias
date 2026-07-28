@@ -130,6 +130,14 @@ const envSchema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
 
+  // Liga/desliga a análise profunda das 5 áreas (1 chamada Sonnet por artigo,
+  // lendo o corpo). Desligada economiza Sonnet; o resumo/digest do WhatsApp NÃO
+  // depende disso (é determinístico) e o dedup histórico usa `surfaced_at`.
+  ANALYSIS_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+
   // Provedor de LLM: 'anthropic' chama o Claude direto; 'litellm' usa o gateway.
   LLM_PROVIDER: z.enum(['anthropic', 'litellm']).default('litellm'),
 
