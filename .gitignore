@@ -27,3 +27,7 @@ pnpm-debug.log*
 .data/
 postgres-data/
 redis-data/
+
+# cópias temporárias do .env (nunca versionar)
+env.txt
+*.env.run
