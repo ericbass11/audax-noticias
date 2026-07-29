@@ -145,6 +145,7 @@ export function buildContainer() {
   // --- WhatsApp ---
   const whatsapp = new EvolutionApiClient({
     baseUrl: env.EVOLUTION_BASE_URL,
+    flavor: env.EVOLUTION_API_FLAVOR,
     instance: env.EVOLUTION_INSTANCE,
     apiKey: env.EVOLUTION_API_KEY,
     enabled: env.WHATSAPP_DISPATCH_ENABLED,

@@ -46,9 +46,11 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-audax}:${POSTGRES_PASSWORD:-audax}@postgres:5432/${POSTGRES_DB:-audax_noticias}
       REDIS_URL: redis://redis:6379
-      # Evolution é EXTERNA (já rodando na VPS). Defina EVOLUTION_BASE_URL no .env.
-      # Default: alcança a Evolution publicada na porta 8080 do HOST da VPS.
-      EVOLUTION_BASE_URL: ${EVOLUTION_BASE_URL:-http://host.docker.internal:8080}
+      # Evolution é EXTERNA (já rodando na VPS, sabor GO/whatsmeow na porta 3300).
+      # Defina EVOLUTION_BASE_URL e EVOLUTION_API_FLAVOR=go no .env.
+      # Default: alcança a Evolution GO publicada na porta 3300 do HOST da VPS.
+      EVOLUTION_BASE_URL: ${EVOLUTION_BASE_URL:-http://host.docker.internal:3300}
+      EVOLUTION_API_FLAVOR: ${EVOLUTION_API_FLAVOR:-go}
     # Deixa o backend (no compose) alcançar serviços publicados no host da VPS
     # (ex.: a Evolution em host:8080) via host.docker.internal.
     extra_hosts:

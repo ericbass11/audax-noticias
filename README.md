@@ -53,7 +53,7 @@ Credenciais que **você precisa fornecer** (estão como placeholders no `.env.ex
 | `SERPAPI_API_KEY` | coleta via SerpAPI (engine google_news) |
 | `RSS_FEEDS` | URLs reais de feeds de agro/economia |
 | `LITELLM_BASE_URL` / `LITELLM_API_KEY` / `LITELLM_MODEL` | gateway LiteLLM externo (ver abaixo) p/ classificação |
-| `EVOLUTION_BASE_URL` / `EVOLUTION_INSTANCE` / `EVOLUTION_API_KEY` | WhatsApp |
+| `EVOLUTION_BASE_URL` / `EVOLUTION_API_FLAVOR` / `EVOLUTION_API_KEY` | WhatsApp (`go` na VPS, `v2` no compose local; `EVOLUTION_INSTANCE` só vale na `v2`) |
 | `EVOLUTION_RECIPIENTS` | grupos/contatos que recebem o resumo |
 
 ---
@@ -180,8 +180,12 @@ testa só o RSS) e imprime contagem de coletados / válidos / únicos após dedu
 - **Auditoria + Langfuse:** o **gateway** já envia as chamadas ao Langfuse (custo/latência/prompts).
   No app, mantemos `llm_audit_logs` como trilha local; `AuditLogger.forwardToLangfuse` é um hook
   app-level opcional (no-op quando `LANGFUSE_ENABLED=false`).
-- **Evolution API:** o payload varia entre versões; implementamos o formato v2
-  (`{ number, text }`) isolado em `EvolutionApiClient.buildBody()` — ponto único de ajuste.
+- **Evolution API:** endpoints e resposta variam entre versões, então
+  `EvolutionApiClient` fala os dois sabores via `EVOLUTION_API_FLAVOR`:
+  `go` (Evolution GO/whatsmeow — o da VPS: `POST /send/text`, id em
+  `data.Info.ID`, instância vinda do token) e `v2` (Baileys — o container do
+  compose local: `POST /message/sendText/{instance}`, id em `key.id`).
+  Auth é `apikey` nos dois. Ponto único de ajuste para novas versões.
 - **Processo único:** API + worker + cron rodam juntos (deploy local simples). Para escalar,
   dá para separar em processos reusando o mesmo composition root (`container.ts`).
 - **`WHATSAPP_DISPATCH_ENABLED=false`** em dev simula o envio (loga, não chama a Evolution).

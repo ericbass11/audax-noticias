@@ -175,6 +175,11 @@ const envSchema = z.object({
   LANGFUSE_BASE_URL: z.string().default('https://cloud.langfuse.com'),
 
   EVOLUTION_BASE_URL: z.string().url().default('http://localhost:8080'),
+  // Sabor da Evolution: 'go' (Evolution GO/whatsmeow — o da VPS) ou 'v2'
+  // (Baileys, `atendai/evolution-api` — o container do docker-compose local).
+  // Muda o path dos endpoints e onde vem o id da mensagem. Ver EvolutionApiClient.
+  EVOLUTION_API_FLAVOR: z.enum(['go', 'v2']).default('go'),
+  // Só usado no sabor 'v2' (vai no path). No 'go' a instância vem do token.
   EVOLUTION_INSTANCE: z.string().default('audax'),
   EVOLUTION_API_KEY: z.string().default(''),
   EVOLUTION_RECIPIENTS: z.string().default(''),

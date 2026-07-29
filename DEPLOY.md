@@ -26,12 +26,17 @@ cp .env.example .env
 Edite o `.env` e preencha:
 - `ANTHROPIC_API_KEY` — chave da Anthropic.
 - `SERPAPI_API_KEY` — chave do SerpAPI.
-- **Evolution existente** (o backend se conecta a ela):
-  - `EVOLUTION_BASE_URL` — URL da sua Evolution vista de dentro dos containers.
-    Se ela está publicada na porta 8080 do host da VPS, use
-    `http://host.docker.internal:8080` (o compose já mapeia esse host).
-  - `EVOLUTION_API_KEY` — a **mesma** chave (AUTHENTICATION_API_KEY) da sua Evolution.
-  - `EVOLUTION_INSTANCE` — o **nome da instância** já conectada (ex.: `audax`).
+- **Evolution existente** (o backend se conecta a ela) — hoje a VPS roda
+  **Evolution GO** (whatsmeow), que tem endpoints diferentes da v2/Baileys:
+  - `EVOLUTION_API_FLAVOR=go` — obrigatório na VPS. O sabor define o path
+    (`/send/text` no `go` vs `/message/sendText/{instance}` na `v2`).
+  - `EVOLUTION_BASE_URL=http://164.152.36.194:3300` — URL da Evolution GO. De
+    dentro do container, `http://host.docker.internal:3300` também funciona (o
+    compose já mapeia esse host).
+  - `EVOLUTION_API_KEY` — o **token da instância** na Evolution GO (é ele que
+    identifica a instância; vai no header `apikey`).
+  - `EVOLUTION_INSTANCE` — **ignorado no sabor `go`** (a instância vem do token).
+    Só importa se você voltar para a `v2`.
 - `WEB_APP_URL=http://IP-DA-VPS:8090` (ou o domínio, se usar o nginx-proxy-manager)
 - `POSTGRES_PASSWORD` — troque a senha padrão.
 - Destinatários (quando for pra valer):
@@ -60,13 +65,21 @@ docker compose -f docker-compose.prod.yml logs -f backend
 Não há QR para escanear aqui — a Evolution já está conectada. Só confirme que o
 backend a alcança e que a instância/chave batem:
 ```bash
-# de dentro do container do backend, checar o estado da instância
+# de dentro do container do backend, checar o estado da instância (Evolution GO)
 docker compose -f docker-compose.prod.yml exec backend \
-  node -e "fetch(process.env.EVOLUTION_BASE_URL+'/instance/connectionState/'+process.env.EVOLUTION_INSTANCE,{headers:{apikey:process.env.EVOLUTION_API_KEY}}).then(r=>r.json()).then(d=>console.log(JSON.stringify(d))).catch(e=>console.log('ERRO',e.message))"
+  node -e "fetch(process.env.EVOLUTION_BASE_URL.replace(/\/+$/,'')+'/instance/status',{headers:{apikey:process.env.EVOLUTION_API_KEY}}).then(r=>r.json()).then(d=>console.log(JSON.stringify(d))).catch(e=>console.log('ERRO',e.message))"
 ```
-Esperado: `{"instance":{"instanceName":"...","state":"open"}}`. Se der erro de
-conexão, ajuste `EVOLUTION_BASE_URL` (a Evolution precisa estar acessível a partir
-do container — `host.docker.internal:8080` cobre o caso dela estar publicada no host).
+Esperado: `{"data":{"Connected":true,"LoggedIn":true,"Name":"..."},"message":"success"}`.
+
+- `{"error":"not authorized"}` → `EVOLUTION_API_KEY` errado (token da instância).
+- Erro de conexão → ajuste `EVOLUTION_BASE_URL` (a Evolution precisa estar
+  acessível a partir do container — `host.docker.internal:3300` cobre o caso
+  dela estar publicada no host).
+- `404` em `/send/text` na hora do disparo → `EVOLUTION_API_FLAVOR` está como
+  `v2` mas a Evolution é GO (ou vice-versa).
+
+> Na `v2` (Baileys) esse mesmo check é
+> `/instance/connectionState/{instance}` e devolve `{"instance":{...,"state":"open"}}`.
 
 ## 5. Testar
 - Portal: `http://IP-DA-VPS:8090`
