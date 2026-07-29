@@ -43,7 +43,14 @@ Edite o `.env` e preencha:
   - `EVOLUTION_RECIPIENTS` — digest de notícias (CEO).
   - `EVOLUTION_RECIPIENTS_FIDC` — mercado FIDC (vazio = usa o de cima).
   - `EVOLUTION_RECIPIENTS_COMMODITIES` — cotações (vazio = usa o de cima).
-  - Formato: número `5511999999999` ou grupo `...@g.us`, separados por vírgula.
+  - Formato: grupo `...@g.us` ou número `5511999999999`, separados por vírgula.
+  - ⚠️ **Na Evolution GO atual, use SOMENTE grupo.** Envio 1:1 para número falha
+    com `HTTP 500 {"error":"server returned error 463"}`
+    (`NackCallerReachoutTimelocked`) — inclusive para contato com histórico. É bug
+    aberto do Evolution GO (privacy tokens `tctoken`/`cstoken` nunca persistidos):
+    https://github.com/evolution-foundation/evolution-go/issues/50
+    Enquanto não atualizar/re-pairear a instância, número puro não recebe.
+    Para "mandar só pra mim", crie um grupo com você + a instância.
 - `WHATSAPP_DISPATCH_ENABLED=true` para enviar de verdade.
 
 > As queries (GNews em standby, SerpAPI, WATCHLIST/ANVISA, FIDC) já vêm com
