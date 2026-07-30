@@ -2,6 +2,7 @@ import type { ArticleTrack } from '../../../collection/domain/entities/Article.j
 import type { ArticleRepository } from '../../../collection/domain/repositories/ArticleRepository.js';
 import type { AuditLogger } from '../../infrastructure/audit/AuditLogger.js';
 import type { LlmClient } from '../../infrastructure/llm/LlmClient.js';
+import { parseLlmJson } from '../../infrastructure/llm/parseLlmJson.js';
 
 const SYSTEM = `Você compara notícias NOVAS (candidatas a envio agora) com notícias JÁ ENVIADAS nos últimos dias, para não repetir a mesma história em dias diferentes.
 
@@ -112,12 +113,7 @@ export class DedupeAgainstHistoryUseCase {
   }
 
   private safeParse(text: string): Parsed | null {
-    try {
-      const cleaned = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-      const data = JSON.parse(cleaned);
-      return data && typeof data === 'object' ? (data as Parsed) : null;
-    } catch {
-      return null;
-    }
+    const data = parseLlmJson(text);
+    return data && typeof data === 'object' ? (data as Parsed) : null;
   }
 }

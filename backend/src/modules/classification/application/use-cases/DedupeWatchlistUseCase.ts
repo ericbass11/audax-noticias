@@ -1,6 +1,7 @@
 import type { ArticleRepository } from '../../../collection/domain/repositories/ArticleRepository.js';
 import type { AuditLogger } from '../../infrastructure/audit/AuditLogger.js';
 import type { LlmClient } from '../../infrastructure/llm/LlmClient.js';
+import { parseLlmJson } from '../../infrastructure/llm/parseLlmJson.js';
 
 const SYSTEM = `Você agrupa notícias que tratam do MESMO fato regulatório (mesma ação da ANVISA sobre o mesmo produto/marca/lote/empresa), ainda que publicadas por veículos diferentes e com títulos distintos.
 
@@ -88,12 +89,7 @@ export class DedupeWatchlistUseCase {
   }
 
   private safeParse(text: string): Parsed | null {
-    try {
-      const cleaned = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-      const data = JSON.parse(cleaned);
-      return data && typeof data === 'object' ? (data as Parsed) : null;
-    } catch {
-      return null;
-    }
+    const data = parseLlmJson(text);
+    return data && typeof data === 'object' ? (data as Parsed) : null;
   }
 }

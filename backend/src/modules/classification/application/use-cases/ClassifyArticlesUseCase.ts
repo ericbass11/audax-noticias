@@ -6,6 +6,7 @@ import { isImpact } from '../../domain/value-objects/Impact.js';
 import { RelevanceScore } from '../../domain/value-objects/RelevanceScore.js';
 import type { AuditLogger } from '../../infrastructure/audit/AuditLogger.js';
 import type { LlmClient } from '../../infrastructure/llm/LlmClient.js';
+import { parseLlmJson } from '../../infrastructure/llm/parseLlmJson.js';
 import {
   CLASSIFICATION_PROMPT_VERSION,
   CLASSIFICATION_SYSTEM_PROMPT,
@@ -136,15 +137,11 @@ export class ClassifyArticlesUseCase {
 
   /** Parse seguro: aceita {resultados:[...]} ou um array direto; nunca lança. */
   private safeParse(text: string): LlmResultItem[] | null {
-    try {
-      const cleaned = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-      const data = JSON.parse(cleaned);
-      if (Array.isArray(data)) return data as LlmResultItem[];
-      if (data && Array.isArray(data.resultados)) return data.resultados as LlmResultItem[];
-      return null;
-    } catch {
-      return null;
-    }
+    const data = parseLlmJson(text);
+    if (Array.isArray(data)) return data as LlmResultItem[];
+    const resultados = (data as { resultados?: unknown } | null)?.resultados;
+    if (Array.isArray(resultados)) return resultados as LlmResultItem[];
+    return null;
   }
 
   private chunk<T>(arr: T[], size: number): T[][] {

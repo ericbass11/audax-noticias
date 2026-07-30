@@ -6,6 +6,7 @@ import { formatPublishedAtBR } from '../../domain/services/ExecutiveSummaryBuild
 import type { AuditLogger } from '../../infrastructure/audit/AuditLogger.js';
 import type { ArticleContentFetcher } from '../../infrastructure/content/ArticleContentFetcher.js';
 import type { LlmClient } from '../../infrastructure/llm/LlmClient.js';
+import { parseLlmJson } from '../../infrastructure/llm/parseLlmJson.js';
 import {
   ANALYSIS_PROMPT_VERSION,
   ANALYSIS_SYSTEM_PROMPT,
@@ -184,13 +185,8 @@ export class GenerateArticleAnalysisUseCase {
   }
 
   private safeParse(text: string): ParsedAnalysis | null {
-    try {
-      const cleaned = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-      const data = JSON.parse(cleaned);
-      if (data && typeof data === 'object' && !Array.isArray(data)) return data as ParsedAnalysis;
-      return null;
-    } catch {
-      return null;
-    }
+    const data = parseLlmJson(text);
+    if (data && typeof data === 'object' && !Array.isArray(data)) return data as ParsedAnalysis;
+    return null;
   }
 }

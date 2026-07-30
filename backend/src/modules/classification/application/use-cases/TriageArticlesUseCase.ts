@@ -2,6 +2,7 @@ import type { Article } from '../../../collection/domain/entities/Article.js';
 import type { ArticleRepository } from '../../../collection/domain/repositories/ArticleRepository.js';
 import type { AuditLogger } from '../../infrastructure/audit/AuditLogger.js';
 import type { LlmClient } from '../../infrastructure/llm/LlmClient.js';
+import { parseLlmJson } from '../../infrastructure/llm/parseLlmJson.js';
 import {
   TRIAGE_SYSTEM_PROMPT,
   buildTriageUserPrompt,
@@ -138,15 +139,11 @@ export class TriageArticlesUseCase {
   }
 
   private safeParse(text: string): TriageResultItem[] | null {
-    try {
-      const cleaned = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-      const data = JSON.parse(cleaned);
-      if (Array.isArray(data)) return data as TriageResultItem[];
-      if (data && Array.isArray(data.resultados)) return data.resultados as TriageResultItem[];
-      return null;
-    } catch {
-      return null;
-    }
+    const data = parseLlmJson(text);
+    if (Array.isArray(data)) return data as TriageResultItem[];
+    const resultados = (data as { resultados?: unknown } | null)?.resultados;
+    if (Array.isArray(resultados)) return resultados as TriageResultItem[];
+    return null;
   }
 
   private chunk<T>(arr: T[], size: number): T[][] {
