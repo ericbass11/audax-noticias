@@ -112,11 +112,14 @@ const envSchema = z.object({
   // dedup semântico, mostra no máximo estes (os de maior score da triagem).
   DISASTER_MAX_ITEMS: z.coerce.number().default(6),
   // Liga/desliga a trilha de desastres INTEIRA (coleta + bloco no digest).
-  // Desligada por ora (a relevância de risco de crédito por praça ainda será
-  // reformulada — ver backlog). `false` = não coleta e não aparece no digest.
+  // DEFAULT `false` — desligada por ora: a relevância de risco de crédito por
+  // praça ainda será reformulada (ver backlog), e a triagem é fail-open (se a
+  // chamada ao LLM falha, o lote passa com score 100), o que já colocou item
+  // irrelevante no digest do CEO. `false` = não coleta e não aparece no digest.
+  // Só religue junto com a reformulação da relevância.
   DISASTER_ENABLED: z
     .string()
-    .default('true')
+    .default('false')
     .transform((v) => v === 'true'),
   // Incluir o bloco de risco climático no digest do CEO? (default sim).
   INCLUDE_DISASTER_IN_SUMMARY: z
