@@ -8,6 +8,7 @@ import { RssClient } from '../modules/collection/infrastructure/sources/RssClien
 import { SerpApiClient } from '../modules/collection/infrastructure/sources/SerpApiClient.js';
 import type { NewsSource } from '../modules/collection/infrastructure/sources/NewsSource.js';
 import { CollectNewsUseCase } from '../modules/collection/application/use-cases/CollectNewsUseCase.js';
+import { DEFAULT_SPONSORED_URL_PATTERNS } from '../modules/collection/domain/services/UrlPolicy.js';
 import { CollectDisasterUseCase } from '../modules/collection/application/use-cases/CollectDisasterUseCase.js';
 import { PromoteToGroupUseCase } from '../application/PromoteToGroupUseCase.js';
 import { SqlServerCityProvider } from '../modules/collection/infrastructure/db/SqlServerCityProvider.js';
@@ -168,8 +169,17 @@ export function buildContainer() {
         sources: fidcSources,
         maxAgeHours: env.FIDC_MAX_AGE_DAYS * 24,
         maxItems: env.FIDC_MAX_ITEMS,
+        // Mantém a rota no mercado brasileiro (ex.: bloqueia sapo.pt).
+        blockedHostSuffixes: env.fidcBlockedHostSuffixes,
       },
     ],
+    undefined,
+    {
+      // Conteúdo patrocinado: defaults do UrlPolicy + o que vier do .env.
+      sponsoredUrlPatterns: env.BLOCK_SPONSORED_CONTENT
+        ? [...DEFAULT_SPONSORED_URL_PATTERNS, ...env.sponsoredUrlPatterns]
+        : [],
+    },
   );
   const triageArticles = new TriageArticlesUseCase(
     articleRepository,
@@ -180,12 +190,15 @@ export function buildContainer() {
     env.TRIAGE_MAX_TO_CLASSIFY,
   );
   // Triagem de relevância da rota FIDC (tese ampliada: segmento + juros/BC/geo).
+  // Corte PRÓPRIO (FIDC_MIN_SCORE): aqui a triagem é o filtro final do digest,
+  // não um pré-filtro da classificação, então herdar TRIAGE_MIN_SCORE (40)
+  // deixava passar ruído.
   const fidcTriage = new TriageArticlesUseCase(
     articleRepository,
     triageLlm,
     auditLogger,
     env.LLM_BATCH_SIZE,
-    env.TRIAGE_MIN_SCORE,
+    env.FIDC_MIN_SCORE,
     env.FIDC_MAX_ANALYZE,
     TRIAGE_FIDC_SYSTEM_PROMPT,
   );
@@ -288,6 +301,9 @@ export function buildContainer() {
     articleRepository,
     summaryRepository,
     dispatchSummary,
+    // Classificações: dão categoria/impacto ao digest de rota e habilitam o
+    // piso de relevância. Item sem classificação continua entrando.
+    classificationRepository,
   );
   const fidcRecipients = env.evolutionRecipientsFidc.length
     ? env.evolutionRecipientsFidc
@@ -344,6 +360,11 @@ export function buildContainer() {
     // Liga/desliga a análise profunda das 5 áreas (economia de Sonnet). A
     // marcação de surfada e o resumo/digest NÃO dependem disso.
     env.ANALYSIS_ENABLED,
+    // Trilha FIDC: classificar (categoria/impacto/relevância) + piso próprio.
+    env.FIDC_CLASSIFY_ENABLED,
+    env.FIDC_MIN_RELEVANCE,
+    // Não repetir no digest FIDC o que já vai no digest do CEO neste ciclo.
+    env.CROSS_TRACK_DEDUP_ENABLED,
   );
 
   const newsFeedQuery = new NewsFeedQuery(db);

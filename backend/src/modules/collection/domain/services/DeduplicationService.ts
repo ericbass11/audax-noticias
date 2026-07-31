@@ -59,6 +59,23 @@ export class DeduplicationService {
     return clusters.map((c) => c.rep);
   }
 
+  /**
+   * O título trata da MESMA história de algum dos títulos de referência?
+   *
+   * Usado no dedup ENTRE trilhas: uma matéria do digest FIDC que repete uma já
+   * escolhida para o digest do CEO no mesmo ciclo não precisa sair duas vezes
+   * (os dois digests podem ir ao mesmo grupo). Reaproveita exatamente o mesmo
+   * critério do dedup interno (Jaccard/containment de tokens), sem LLM.
+   *
+   * Só pega título reescrito de forma parecida; reescrita radical continua
+   * exigindo o dedup semântico via LLM.
+   */
+  isSameStoryAsAny(title: string, referenceTitles: readonly string[]): boolean {
+    const tokens = this.tokenize(title);
+    if (tokens.size === 0) return false;
+    return referenceTitles.some((ref) => this.isSameStory(tokens, this.tokenize(ref)));
+  }
+
   /** Título → conjunto de tokens normalizados (sem acento, sem stopwords). */
   private tokenize(title: string): Set<string> {
     const words = title

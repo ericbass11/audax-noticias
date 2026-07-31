@@ -13,6 +13,12 @@ export interface WatchlistMessageItem {
   title: string;
   url: string;
   publishedAt: Date | null;
+  /**
+   * Classificação, quando a rota passa por ela (hoje: FIDC). Ausente = a rota
+   * não é classificada e o item sai no formato simples, como antes.
+   */
+  category?: string;
+  impact?: Impact;
 }
 
 const IMPACT_EMOJI: Record<Impact, string> = {
@@ -84,7 +90,13 @@ export class ExecutiveSummaryBuilder {
     const blocks = items.map((i) => {
       const data = formatPublishedAtBR(i.publishedAt);
       const dateLine = data ? `🗓️ ${data}\n` : '';
-      return `▪️ ${i.title.trim()}\n${dateLine}${i.url}`;
+      // Com classificação, usa o mesmo formato do digest do CEO (emoji de
+      // impacto + categoria). SEM classificação, mantém o formato antigo —
+      // então rota não classificada continua saindo idêntica ao que era.
+      const prefix = i.category
+        ? `${IMPACT_EMOJI[i.impact ?? 'neutro']} *${i.category}* — `
+        : '▪️ ';
+      return `${prefix}${i.title.trim()}\n${dateLine}${i.url}`;
     });
     return [`*${header}*`, '', blocks.join('\n\n')].join('\n');
   }

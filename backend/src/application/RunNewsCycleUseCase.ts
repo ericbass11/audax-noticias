@@ -14,6 +14,7 @@ import type { SummaryRepository } from '../modules/notification/domain/repositor
 import type { ProcessingRunRepository } from '../modules/shared/domain/ProcessingRunRepository.js';
 import type { TriggerType } from '../modules/shared/domain/ProcessingRun.js';
 import type { ArticleRepository } from '../modules/collection/domain/repositories/ArticleRepository.js';
+import { DeduplicationService } from '../modules/collection/domain/services/DeduplicationService.js';
 
 export interface RunNewsCycleInput {
   periodKey: string;
@@ -99,6 +100,17 @@ export class RunNewsCycleUseCase {
     /** Liga/desliga a análise profunda das 5 áreas (economia de Sonnet). Com
      *  false, pula fetch+LLM; a MARCAÇÃO de surfada e o resumo continuam. */
     private readonly analysisEnabled = true,
+    /** Classificar a trilha FIDC (relevância/categoria/impacto)? Com false, a
+     *  rota segue como era: só triagem, digest sem categoria e sem piso. */
+    private readonly fidcClassifyEnabled = false,
+    /** Piso de relevância do digest FIDC (0 = sem corte). Só vale para item
+     *  COM classificação — item sem classificação nunca é descartado aqui. */
+    private readonly fidcMinRelevance = 0,
+    /** Cortar do digest FIDC as matérias que repetem o digest do CEO no mesmo
+     *  ciclo (os dois podem ir ao mesmo grupo). */
+    private readonly crossTrackDedupEnabled = false,
+    /** Comparador de "mesma história" usado no dedup entre trilhas. */
+    private readonly dedupService: DeduplicationService = new DeduplicationService(),
   ) {}
 
   /** Modo preview ativo? (todos os disparos do ciclo vão ao número pessoal). */
@@ -262,25 +274,77 @@ export class RunNewsCycleUseCase {
           sinceDays: HISTORY_WINDOW_DAYS.fidc,
         });
       }
+      // Dedup ENTRE trilhas: as duas rotas se sobrepõem por desenho (a trilha
+      // 'news' tem a categoria "Setor FIDC"; a 'fidc' cobre mercado/regulação),
+      // e os dois digests podem ir ao MESMO grupo. Aqui cortamos do digest FIDC
+      // a matéria que repete uma já escolhida para o do CEO neste ciclo.
+      // Determinístico (títulos, sem LLM) e tolerante: erro → não remove nada.
+      // Roda ANTES da classificação para não gastar LLM em item que vai sair.
+      if (this.crossTrackDedupEnabled && fidcIds.length > 0 && survivorIds.length > 0) {
+        try {
+          const newsTitles = (await this.articleRepository.findByIds(survivorIds)).map(
+            (a) => a.title,
+          );
+          const fidcArticles = await this.articleRepository.findByIds(fidcIds);
+          const repeated = fidcArticles.filter((a) =>
+            this.dedupService.isSameStoryAsAny(a.title, newsTitles),
+          );
+          if (repeated.length > 0) {
+            const dropIds = new Set(repeated.map((a) => a.id!));
+            fidcIds = fidcIds.filter((id) => !dropIds.has(id));
+            console.log(
+              `🔀 Dedup entre trilhas: ${repeated.length} matéria(s) FIDC já cobertas pelo digest do CEO.`,
+            );
+            for (const a of repeated) console.log(`   ↳ ${a.title.slice(0, 80)}`);
+          }
+        } catch (err) {
+          console.error(
+            '⚠️  Dedup entre trilhas falhou (nada removido):',
+            (err as Error).message,
+          );
+        }
+      }
+      // Classificação da trilha FIDC: dá relevância/categoria/impacto ao digest
+      // e habilita o piso. Se falhar, os itens ficam SEM classificação e o
+      // digest sai no formato antigo, sem corte — nunca perdemos notícia aqui.
+      if (this.fidcClassifyEnabled && fidcIds.length > 0) {
+        try {
+          const result = await this.classify.execute(fidcIds);
+          console.log(`🏷️  Classificação FIDC: ${result.classified}/${fidcIds.length} itens.`);
+        } catch (err) {
+          console.error(
+            '⚠️  Classificação FIDC falhou (digest segue sem categoria/piso):',
+            (err as Error).message,
+          );
+        }
+      }
       if (fidcIds.length > 0) {
+        // Por padrão marca todos (comportamento antigo); se o digest devolver o
+        // recorte real, marca só o que saiu — igual à trilha de notícias.
+        let surfacedFidcIds = fidcIds;
         try {
           // Análise profunda condicional; o digest FIDC não depende dela.
           if (this.analysisEnabled) {
             await this.analyze.execute(fidcIds, { mode: 'fidc' });
           }
-          await this.dispatchTrackDigest.execute(
+          const digest = await this.dispatchTrackDigest.execute(
             run.id!,
             `${input.periodKey}:fidc`,
             fidcIds,
             'Audax | Mercado FIDC & Regulação',
             this.previewMode ? this.previewRecipients : this.fidcRecipients,
+            // O piso só age em item COM classificação (ver DispatchTrackDigest).
+            { minRelevance: this.fidcClassifyEnabled ? this.fidcMinRelevance : 0 },
           );
+          if (digest.articleIds) surfacedFidcIds = digest.articleIds;
           dispatchedToPreview = true;
         } catch (err) {
           console.error('⚠️  Falha no fluxo FIDC:', (err as Error).message);
         }
         // Marca como surfadas SEMPRE (independe da análise) — sinal do dedup histórico.
-        await this.articleRepository.markSurfaced(fidcIds);
+        if (surfacedFidcIds.length > 0) {
+          await this.articleRepository.markSurfaced(surfacedFidcIds);
+        }
       }
 
       // 4c. Desastres climáticos: triagem (confirma desastre real/recente/

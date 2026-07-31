@@ -1,6 +1,7 @@
 import { Article, type ArticleTrack, type NormalizedArticleInput } from '../../domain/entities/Article.js';
 import type { ArticleRepository } from '../../domain/repositories/ArticleRepository.js';
 import { DeduplicationService } from '../../domain/services/DeduplicationService.js';
+import { hasBlockedHostSuffix, isSponsoredUrl } from '../../domain/services/UrlPolicy.js';
 import type { NewsSource } from '../../infrastructure/sources/NewsSource.js';
 
 /** Configuração de uma rota extra (watchlist ANVISA, mercado FIDC, ...). */
@@ -9,6 +10,20 @@ export interface ExtraTrackConfig {
   sources: NewsSource[];
   maxAgeHours: number;
   maxItems: number; // 0 = sem teto
+  /**
+   * Sufixos de host bloqueados SÓ nesta rota (ex.: ['pt'] mantém a trilha FIDC
+   * no mercado brasileiro). Vazio/ausente = sem bloqueio.
+   */
+  blockedHostSuffixes?: string[];
+}
+
+/**
+ * Filtros de URL aplicados a TODAS as trilhas na coleta. Listas vazias
+ * desligam o filtro correspondente.
+ */
+export interface CollectUrlFilters {
+  /** Padrões de URL de conteúdo patrocinado/publicitário. */
+  sponsoredUrlPatterns?: string[];
 }
 
 export interface CollectNewsResult {
@@ -39,6 +54,8 @@ export class CollectNewsUseCase {
     /** Rotas extras (watchlist, fidc, ...). */
     private readonly extraTracks: ExtraTrackConfig[] = [],
     private readonly dedup: DeduplicationService = new DeduplicationService(),
+    /** Filtros de URL (conteúdo patrocinado). Ausente = nenhum filtro. */
+    private readonly urlFilters: CollectUrlFilters = {},
   ) {}
 
   async execute(runId: string): Promise<CollectNewsResult> {
@@ -53,7 +70,15 @@ export class CollectNewsUseCase {
     const byTrack: Partial<Record<ArticleTrack, string[]>> = {};
 
     for (const t of this.extraTracks) {
-      const r = await this.collectTrack(t.sources, t.maxAgeHours, t.maxItems, t.track, runId);
+      const r = await this.collectTrack(
+        t.sources,
+        t.maxAgeHours,
+        t.maxItems,
+        t.track,
+        runId,
+        false,
+        t.blockedHostSuffixes ?? [],
+      );
       collected += r.collected;
       recent += r.recent;
       byTrack[t.track] = r.savedIds;
@@ -77,6 +102,8 @@ export class CollectNewsUseCase {
     track: ArticleTrack,
     runId: string,
     dropUndated = false,
+    /** Sufixos de host bloqueados nesta rota (vazio = sem bloqueio). */
+    blockedHostSuffixes: string[] = [],
   ): Promise<{
     collected: number;
     recent: number;
@@ -111,9 +138,32 @@ export class CollectNewsUseCase {
             .slice(0, maxItems)
         : recent;
 
-    const articles = capped
-      .filter((n) => n.title && n.url)
-      .map((n) => Article.fromNormalized(n, runId, track));
+    // Filtros determinísticos de URL. Ambos são "na dúvida mantém" (ver
+    // UrlPolicy) e o que cai é LOGADO — corte silencioso mascara problema.
+    const sponsoredPatterns = this.urlFilters.sponsoredUrlPatterns ?? [];
+    let droppedSponsored = 0;
+    let droppedHost = 0;
+    const allowed = capped.filter((n) => {
+      if (!n.title || !n.url) return false;
+      if (isSponsoredUrl(n.url, sponsoredPatterns)) {
+        droppedSponsored += 1;
+        console.log(`🚫 patrocinado (${track}): ${n.title.slice(0, 70)} — ${n.url}`);
+        return false;
+      }
+      if (hasBlockedHostSuffix(n.url, blockedHostSuffixes)) {
+        droppedHost += 1;
+        console.log(`🌍 fora do mercado (${track}): ${n.title.slice(0, 70)} — ${n.url}`);
+        return false;
+      }
+      return true;
+    });
+    if (droppedSponsored > 0 || droppedHost > 0) {
+      console.log(
+        `🧯 Filtro de URL (${track}): ${droppedSponsored} patrocinado(s), ${droppedHost} fora do mercado.`,
+      );
+    }
+
+    const articles = allowed.map((n) => Article.fromNormalized(n, runId, track));
     const uniqueInBatch = this.dedup.dedupeWithinBatch(articles);
 
     const existing = await this.articleRepository.findExistingHashes(

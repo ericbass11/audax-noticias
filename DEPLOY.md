@@ -56,6 +56,33 @@ Edite o `.env` e preencha:
 > As queries (GNews em standby, SerpAPI, WATCHLIST/ANVISA, FIDC) já vêm com
 > valores bons no `.env.example` — ajuste se quiser.
 
+### Filtros de ruído do digest
+Todos têm default seguro no código, então **funcionam sem tocar no `.env`**. Se
+algum estiver cortando demais, desligue individualmente (não precisa rebuild —
+só `.env` + `up -d`):
+
+| Variável | Default | O que faz |
+|---|---|---|
+| `BLOCK_SPONSORED_CONTENT` | `true` | Descarta URL de conteúdo pago (`/conteudo-patrocinado/`, `/publieditorial/`, ...) em todas as trilhas |
+| `FIDC_MIN_SCORE` | `70` | Corte da triagem FIDC (antes herdava os 40 da triagem de notícias) |
+| `FIDC_CLASSIFY_ENABLED` | `true` | Classifica a trilha FIDC → digest com categoria/impacto |
+| `FIDC_MIN_RELEVANCE` | `65` | Piso do digest FIDC. Item **sem** classificação é sempre mantido |
+| `FIDC_BLOCKED_HOST_SUFFIXES` | `pt` | Mantém a trilha FIDC no mercado brasileiro |
+| `CROSS_TRACK_DEDUP_ENABLED` | `true` | Não repete no digest FIDC o que já vai no do CEO |
+
+Garantia de projeto: **todo filtro falha para o lado de MANTER a notícia.** Lista
+vazia, URL inválida, classificação ausente ou banco fora do ar resultam em
+"não filtra" — o pior caso é o comportamento anterior ao filtro, nunca um digest
+vazio. Para conferir isso sem banco/rede/LLM:
+
+```bash
+cd backend && pnpm verify:filters
+```
+
+Os logs do ciclo mostram o que cada filtro cortou (`🚫 patrocinado`,
+`🌍 fora do mercado`, `🎚️ piso de relevância`, `🔀 dedup entre trilhas`) — não há
+corte silencioso.
+
 ## 3. Subir
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build

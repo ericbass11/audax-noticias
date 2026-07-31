@@ -34,6 +34,24 @@ const envSchema = z.object({
   // Evita coletar/classificar matérias antigas que as fontes devolvem junto.
   COLLECT_MAX_AGE_HOURS: z.coerce.number().default(24),
 
+  // Bloqueia na COLETA (todas as trilhas) URL de conteúdo pago/publicitário.
+  // Motivo real: um anúncio de antecipação de recebíveis
+  // (.../conteudo-patrocinado/...) chegou no digest do CEO em 30/07/2026.
+  BLOCK_SPONSORED_CONTENT: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+  // Padrões extras de URL patrocinada (CSV), somados aos defaults do UrlPolicy.
+  SPONSORED_URL_PATTERNS: z.string().default(''),
+
+  // Dedup ENTRE trilhas: matéria do digest FIDC que repete uma já escolhida
+  // para o digest do CEO no mesmo ciclo é cortada (os dois podem ir ao mesmo
+  // grupo). Determinístico, sem LLM. Tolerante: qualquer erro não remove nada.
+  CROSS_TRACK_DEDUP_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+
   // GNews — isolado atrás da interface NewsSource para troca futura.
   GNEWS_API_KEY: z.string().default(''),
   GNEWS_BASE_URL: z.string().url().default('https://gnews.io/api/v4'),
@@ -66,6 +84,25 @@ const envSchema = z.object({
   FIDC_MAX_ITEMS: z.coerce.number().default(60),
   // Após a triagem de relevância FIDC, quantas seguem para análise/digest.
   FIDC_MAX_ANALYZE: z.coerce.number().default(15),
+  // Corte PRÓPRIO da triagem FIDC. Antes a rota herdava TRIAGE_MIN_SCORE (40),
+  // que é um corte de "vale classificar" — na trilha FIDC ele virava o critério
+  // final de "vale mandar pro CEO" e deixava passar ruído (factoring em
+  // Portugal, crédito privado de data center, aviso de release do BC).
+  FIDC_MIN_SCORE: z.coerce.number().default(70),
+  // Classificar a trilha FIDC (relevância/categoria/impacto), como já é feito
+  // na trilha de notícias. Dá ao digest FIDC o emoji/categoria e habilita o
+  // piso FIDC_MIN_RELEVANCE. Custa 1 chamada de LLM leve por lote.
+  FIDC_CLASSIFY_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+  // Piso de relevância do digest FIDC (só vale para item COM classificação;
+  // sem classificação o item é mantido). 0 desliga o corte.
+  FIDC_MIN_RELEVANCE: z.coerce.number().default(65),
+  // Sufixos de host bloqueados na trilha FIDC — mantém a rota no mercado
+  // brasileiro. Vazio desliga. Compara por sufixo: 'pt' pega sapo.pt e NÃO
+  // pega algo.pt.br.
+  FIDC_BLOCKED_HOST_SUFFIXES: z.string().default('pt'),
   // Teto de itens da watchlist por ciclo (os mais recentes) — controla custo
   // de análise e o volume do portal, já que a rota não passa pela triagem.
   WATCHLIST_MAX_ITEMS: z.coerce.number().default(20),
@@ -224,6 +261,8 @@ export const env = {
   serpapiQueries: csv(raw.SERPAPI_QUERIES),
   watchlistQueries: csv(raw.WATCHLIST_QUERIES),
   fidcQueries: csv(raw.FIDC_QUERIES),
+  sponsoredUrlPatterns: csv(raw.SPONSORED_URL_PATTERNS),
+  fidcBlockedHostSuffixes: csv(raw.FIDC_BLOCKED_HOST_SUFFIXES),
   disasterQueryTerms: csv(raw.DISASTER_QUERY_TERMS),
   evolutionRecipients: csv(raw.EVOLUTION_RECIPIENTS),
   evolutionRecipientsFidc: csv(raw.EVOLUTION_RECIPIENTS_FIDC),

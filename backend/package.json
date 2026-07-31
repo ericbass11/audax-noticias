@@ -11,6 +11,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/infrastructure/database/migrate.ts",
     "test:capture": "node --env-file=../.env --import tsx src/scripts/test-capture.ts",
+    "verify:filters": "node --import tsx src/scripts/verify-filters.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
