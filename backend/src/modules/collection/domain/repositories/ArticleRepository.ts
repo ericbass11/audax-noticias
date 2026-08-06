@@ -22,6 +22,15 @@ export interface RecentSurfacedQuery {
   limit: number;
 }
 
+export interface RecentUnsurfacedQuery {
+  track: ArticleTrack;
+  /** Host da fonte (ex.: 'fidcnews.com.br'). Casa o host e seus subdomínios. */
+  host: string;
+  /** Janela para trás, em dias (compara pela data de publicação). */
+  sinceDays: number;
+  limit: number;
+}
+
 /**
  * Porta de persistência para notícias. Implementada na camada de
  * infraestrutura (Drizzle); o domínio depende apenas desta interface.
@@ -56,4 +65,12 @@ export interface ArticleRepository {
    * mesma história em dias diferentes). Mais recentes primeiro.
    */
   findRecentSurfaced(query: RecentSurfacedQuery): Promise<ArticleTitleRef[]>;
+
+  /**
+   * Notícias de UM host que ainda NÃO foram surfadas, dentro da janela. Base da
+   * vaga fixa da fonte própria (fidcnews.com.br) no digest: garante um item por
+   * ciclo mesmo quando nada novo foi publicado desde o ciclo anterior, sem
+   * nunca repetir o que já saiu. Mais recentes primeiro.
+   */
+  findRecentUnsurfacedByHost(query: RecentUnsurfacedQuery): Promise<Article[]>;
 }

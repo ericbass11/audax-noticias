@@ -10,6 +10,7 @@ import type { NewsSource } from '../modules/collection/infrastructure/sources/Ne
 import { CollectNewsUseCase } from '../modules/collection/application/use-cases/CollectNewsUseCase.js';
 import { DEFAULT_SPONSORED_URL_PATTERNS } from '../modules/collection/domain/services/UrlPolicy.js';
 import { CollectDisasterUseCase } from '../modules/collection/application/use-cases/CollectDisasterUseCase.js';
+import { CollectOwnSourceUseCase } from '../modules/collection/application/use-cases/CollectOwnSourceUseCase.js';
 import { PromoteToGroupUseCase } from '../application/PromoteToGroupUseCase.js';
 import { SqlServerCityProvider } from '../modules/collection/infrastructure/db/SqlServerCityProvider.js';
 
@@ -98,6 +99,16 @@ export function buildContainer() {
     }),
   ];
 
+  // Fonte da CASA (fidcnews.com.br): feed RSS próprio, com vaga fixa no digest
+  // FIDC. O feed é gerado com a origem interna do servidor
+  // (http://127.0.0.1:3360/slug), por isso o `rewriteOrigin` — sem ele o link
+  // que chega ao WhatsApp não abre.
+  const ownSourceFeed = new RssClient([env.OWN_SOURCE_FEED_URL], {
+    rewriteOrigin: `https://${env.OWN_SOURCE_HOST}`,
+    sourceName: env.OWN_SOURCE_NAME,
+    label: env.OWN_SOURCE_NAME,
+  });
+
   // Rota de mercado FIDC/factoring/securitização + regulação — só SerpAPI.
   const fidcSources: NewsSource[] = [
     new SerpApiClient({
@@ -181,6 +192,19 @@ export function buildContainer() {
         : [],
     },
   );
+  // Vaga fixa da fonte da casa no digest FIDC (desligável por flag).
+  const collectOwnSource = env.OWN_SOURCE_ENABLED
+    ? new CollectOwnSourceUseCase(ownSourceFeed, articleRepository, {
+        track: 'fidc',
+        host: env.OWN_SOURCE_HOST,
+        maxAgeDays: env.OWN_SOURCE_MAX_AGE_DAYS,
+        maxItems: env.OWN_SOURCE_MAX_ITEMS,
+      })
+    : undefined;
+  if (collectOwnSource) {
+    console.log(`📌 Fonte própria na vaga fixa do digest FIDC: ${env.OWN_SOURCE_HOST}`);
+  }
+
   const triageArticles = new TriageArticlesUseCase(
     articleRepository,
     triageLlm,
@@ -365,6 +389,9 @@ export function buildContainer() {
     env.FIDC_MIN_RELEVANCE,
     // Não repetir no digest FIDC o que já vai no digest do CEO neste ciclo.
     env.CROSS_TRACK_DEDUP_ENABLED,
+    undefined, // dedupService: default
+    // Vaga fixa do conteúdo da casa. undefined = rota FIDC como era.
+    collectOwnSource,
   );
 
   const newsFeedQuery = new NewsFeedQuery(db);

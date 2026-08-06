@@ -28,10 +28,16 @@ export interface DispatchTrackDigestOptions {
    * classificação falhou). 0 ou ausente = sem corte.
    */
   minRelevance?: number;
+  /**
+   * Vaga FIXA: ids que entram no digest independentemente do piso e aparecem
+   * PRIMEIRO. É o conteúdo da casa (fidcnews.com.br) — não disputa espaço com
+   * o material de terceiros. Ids que não estão em `articleIds` são ignorados.
+   */
+  pinnedIds?: string[];
 }
 
 /** Item interno: o do builder + a relevância usada apenas para o corte/ordem. */
-type RankedItem = WatchlistMessageItem & { relevance?: number };
+type RankedItem = WatchlistMessageItem & { relevance?: number; pinned?: boolean };
 
 /**
  * DispatchTrackDigestUseCase — monta um digest simples de uma rota (ex.: mercado
@@ -66,6 +72,7 @@ export class DispatchTrackDigestUseCase {
 
     const articles = await this.articleRepository.findByIds(articleIds);
     const byArticle = await this.loadClassifications(articleIds);
+    const pinned = new Set(opts.pinnedIds ?? []);
 
     const ranked: RankedItem[] = articles.map((a) => {
       const c = byArticle.get(a.id!);
@@ -74,6 +81,7 @@ export class DispatchTrackDigestUseCase {
         title: a.title,
         url: a.url,
         publishedAt: a.publishedAt,
+        pinned: pinned.has(a.id!),
         ...(c ? { category: c.category, impact: c.impact, relevance: c.relevance } : {}),
       };
     });
@@ -81,7 +89,9 @@ export class DispatchTrackDigestUseCase {
     const minRelevance = opts.minRelevance ?? 0;
     const kept =
       minRelevance > 0
-        ? ranked.filter((it) => it.relevance === undefined || it.relevance >= minRelevance)
+        ? ranked.filter(
+            (it) => it.pinned || it.relevance === undefined || it.relevance >= minRelevance,
+          )
         : ranked;
 
     if (kept.length < ranked.length) {
@@ -133,13 +143,15 @@ export class DispatchTrackDigestUseCase {
   }
 
   /**
-   * Relevância desc quando existe (o corte só faz sentido se o mais relevante
-   * vier primeiro); empate e itens sem classificação caem para data desc, que é
-   * a ordem original da rota.
+   * Vaga fixa primeiro (conteúdo da casa abre o digest). Depois relevância desc
+   * quando existe (o corte só faz sentido se o mais relevante vier primeiro);
+   * empate e itens sem classificação caem para data desc, que é a ordem
+   * original da rota.
    */
   private sort(items: RankedItem[]): RankedItem[] {
     const hasRelevance = items.some((it) => it.relevance !== undefined);
     return [...items].sort((x, y) => {
+      if (x.pinned !== y.pinned) return x.pinned ? -1 : 1;
       if (hasRelevance) {
         const diff = (y.relevance ?? -1) - (x.relevance ?? -1);
         if (diff !== 0) return diff;

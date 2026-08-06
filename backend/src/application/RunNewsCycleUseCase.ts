@@ -1,5 +1,6 @@
 import type { CollectNewsUseCase } from '../modules/collection/application/use-cases/CollectNewsUseCase.js';
 import type { CollectDisasterUseCase } from '../modules/collection/application/use-cases/CollectDisasterUseCase.js';
+import type { CollectOwnSourceUseCase } from '../modules/collection/application/use-cases/CollectOwnSourceUseCase.js';
 import type { TriageArticlesUseCase } from '../modules/classification/application/use-cases/TriageArticlesUseCase.js';
 import type { ClassifyArticlesUseCase } from '../modules/classification/application/use-cases/ClassifyArticlesUseCase.js';
 import type { GenerateArticleAnalysisUseCase } from '../modules/classification/application/use-cases/GenerateArticleAnalysisUseCase.js';
@@ -111,6 +112,9 @@ export class RunNewsCycleUseCase {
     private readonly crossTrackDedupEnabled = false,
     /** Comparador de "mesma história" usado no dedup entre trilhas. */
     private readonly dedupService: DeduplicationService = new DeduplicationService(),
+    /** Vaga fixa do conteúdo da casa (fidcnews.com.br) no digest FIDC.
+     *  Ausente = rota FIDC segue exatamente como era. */
+    private readonly collectOwnSource?: CollectOwnSourceUseCase,
   ) {}
 
   /** Modo preview ativo? (todos os disparos do ciclo vão ao número pessoal). */
@@ -157,10 +161,28 @@ export class RunNewsCycleUseCase {
         }
       }
 
+      // 1c. Vaga FIXA do conteúdo da casa (fidcnews.com.br) no digest FIDC.
+      // Fica FORA de `fidcIds` de propósito: não passa por triagem, dedup de
+      // histórico nem piso de relevância — é conteúdo nosso, entra todo ciclo.
+      let pinnedFidcIds: string[] = [];
+      if (this.collectOwnSource) {
+        try {
+          pinnedFidcIds = (await this.collectOwnSource.execute(run.id!)).pinnedIds;
+        } catch (err) {
+          console.error('⚠️  Vaga fixa da fonte própria falhou:', (err as Error).message);
+        }
+      }
+
       // Cura das rotas extras: agrupa notícias do MESMO evento (mesma matéria
       // em vários veículos) e mantém uma por evento.
       let watchlistIds = collection.byTrack.watchlist ?? [];
       let fidcIds = collection.byTrack.fidc ?? [];
+      // A vaga fixa manda: se a mesma matéria também veio pela busca, ela sai
+      // uma vez só (como item fixado).
+      if (pinnedFidcIds.length > 0) {
+        const isPinned = new Set(pinnedFidcIds);
+        fidcIds = fidcIds.filter((id) => !isPinned.has(id));
+      }
       if (watchlistIds.length > 1) {
         try {
           watchlistIds = await this.dedupeWatchlist.execute(watchlistIds);
@@ -188,6 +210,7 @@ export class RunNewsCycleUseCase {
         collection.savedArticleIds.length === 0 &&
         watchlistIds.length === 0 &&
         fidcIds.length === 0 &&
+        pinnedFidcIds.length === 0 &&
         disasterIds.length === 0
       ) {
         // Distingue "sem notícias" de FALHA DE COLETA: se todas as fontes de
@@ -307,10 +330,15 @@ export class RunNewsCycleUseCase {
       // Classificação da trilha FIDC: dá relevância/categoria/impacto ao digest
       // e habilita o piso. Se falhar, os itens ficam SEM classificação e o
       // digest sai no formato antigo, sem corte — nunca perdemos notícia aqui.
-      if (this.fidcClassifyEnabled && fidcIds.length > 0) {
+      // A vaga fixa é classificada junto (ganha categoria/emoji no digest), mas
+      // NUNCA é cortada pelo piso — quem garante isso é `pinnedIds` no digest.
+      const fidcDigestIds = [...pinnedFidcIds, ...fidcIds];
+      if (this.fidcClassifyEnabled && fidcDigestIds.length > 0) {
         try {
-          const result = await this.classify.execute(fidcIds);
-          console.log(`🏷️  Classificação FIDC: ${result.classified}/${fidcIds.length} itens.`);
+          const result = await this.classify.execute(fidcDigestIds);
+          console.log(
+            `🏷️  Classificação FIDC: ${result.classified}/${fidcDigestIds.length} itens.`,
+          );
         } catch (err) {
           console.error(
             '⚠️  Classificação FIDC falhou (digest segue sem categoria/piso):',
@@ -318,23 +346,26 @@ export class RunNewsCycleUseCase {
           );
         }
       }
-      if (fidcIds.length > 0) {
+      if (fidcDigestIds.length > 0) {
         // Por padrão marca todos (comportamento antigo); se o digest devolver o
         // recorte real, marca só o que saiu — igual à trilha de notícias.
-        let surfacedFidcIds = fidcIds;
+        let surfacedFidcIds = fidcDigestIds;
         try {
           // Análise profunda condicional; o digest FIDC não depende dela.
           if (this.analysisEnabled) {
-            await this.analyze.execute(fidcIds, { mode: 'fidc' });
+            await this.analyze.execute(fidcDigestIds, { mode: 'fidc' });
           }
           const digest = await this.dispatchTrackDigest.execute(
             run.id!,
             `${input.periodKey}:fidc`,
-            fidcIds,
+            fidcDigestIds,
             'Audax | Mercado FIDC & Regulação',
             this.previewMode ? this.previewRecipients : this.fidcRecipients,
             // O piso só age em item COM classificação (ver DispatchTrackDigest).
-            { minRelevance: this.fidcClassifyEnabled ? this.fidcMinRelevance : 0 },
+            {
+              minRelevance: this.fidcClassifyEnabled ? this.fidcMinRelevance : 0,
+              pinnedIds: pinnedFidcIds,
+            },
           );
           if (digest.articleIds) surfacedFidcIds = digest.articleIds;
           dispatchedToPreview = true;

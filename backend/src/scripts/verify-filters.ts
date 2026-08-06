@@ -17,6 +17,7 @@ import {
   DEFAULT_SPONSORED_URL_PATTERNS,
   hasBlockedHostSuffix,
   isSponsoredUrl,
+  rewriteUrlOrigin,
 } from '../modules/collection/domain/services/UrlPolicy.js';
 import type { SummaryRepository } from '../modules/notification/domain/repositories/SummaryRepository.js';
 import type { DispatchSummaryUseCase } from '../modules/notification/application/use-cases/DispatchSummaryUseCase.js';
@@ -174,6 +175,58 @@ check('todos abaixo do piso: nada enviado e nada marcado como surfado', [
   todosBaixos.sent,
   todosBaixos.articleIds,
 ], [0, []]);
+
+console.log('\n== Vaga fixa da fonte da casa (fidcnews.com.br) ==');
+async function runPinned(
+  repo: ClassificationRepository | undefined,
+  minRelevance: number,
+  pinnedIds: string[],
+) {
+  const uc = new DispatchTrackDigestUseCase(fakeArticles, fakeSummaries, fakeDispatch, repo);
+  return uc.execute('run1', 'pk', ['a', 'b'], 'Header', ['dest'], { minRelevance, pinnedIds });
+}
+// 'b' tem relevância 30 (abaixo do piso 65): sem a vaga fixa ele cairia.
+check(
+  'item fixado sobrevive ao piso e abre o digest',
+  (await runPinned(repoWith([['a', alta], ['b', baixa]]), 65, ['b'])).articleIds,
+  ['b', 'a'],
+);
+check(
+  'sem fixados, o mesmo item é cortado (prova que o piso continua valendo)',
+  (await runPinned(repoWith([['a', alta], ['b', baixa]]), 65, [])).articleIds,
+  ['a'],
+);
+check(
+  'só o fixado sobra quando todo o resto está abaixo do piso',
+  (await runPinned(repoWith([['a', baixa], ['b', baixa]]), 65, ['b'])).articleIds,
+  ['b'],
+);
+check(
+  'id fixado que não está no digest é ignorado (não quebra)',
+  (await runPinned(repoWith([['a', alta], ['b', baixa]]), 65, ['inexistente'])).articleIds,
+  ['a'],
+);
+
+console.log('\n== Reescrita da origem do feed da casa ==');
+// O feed do fidcnews.com.br é gerado com a origem INTERNA do servidor; sem a
+// reescrita o link do WhatsApp não abre.
+const rewrite = rewriteUrlOrigin;
+check(
+  'link interno vira link público (e some a porta 3360)',
+  rewrite('http://127.0.0.1:3360/selic-a-14-o-que-muda-agora-para-os-fidcs', 'https://fidcnews.com.br'),
+  'https://fidcnews.com.br/selic-a-14-o-que-muda-agora-para-os-fidcs',
+);
+check(
+  'sem origem configurada, mantém o link como veio',
+  rewrite('http://127.0.0.1:3360/slug', undefined),
+  'http://127.0.0.1:3360/slug',
+);
+check(
+  'link já público não é alterado',
+  rewrite('https://fidcnews.com.br/slug', 'https://fidcnews.com.br'),
+  'https://fidcnews.com.br/slug',
+);
+check('link inválido não quebra a coleta', rewrite('nao-e-url', 'https://fidcnews.com.br'), 'nao-e-url');
 
 console.log(`\n=========== ${pass} ok, ${fail} falha(s) ===========`);
 process.exit(fail === 0 ? 0 : 1);

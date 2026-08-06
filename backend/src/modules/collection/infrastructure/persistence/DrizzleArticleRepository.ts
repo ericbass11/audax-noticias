@@ -7,6 +7,7 @@ import type {
   ArticleRepository,
   ArticleTitleRef,
   RecentSurfacedQuery,
+  RecentUnsurfacedQuery,
 } from '../../domain/repositories/ArticleRepository.js';
 import { ArticleMapper } from '../mappers/ArticleMapper.js';
 
@@ -105,5 +106,32 @@ export class DrizzleArticleRepository implements ArticleRepository {
       .limit(query.limit);
 
     return rows;
+  }
+
+  async findRecentUnsurfacedByHost(query: RecentUnsurfacedQuery): Promise<Article[]> {
+    const host = query.host.trim().toLowerCase().replace(/^\.+/, '');
+    if (host.length === 0) return [];
+    const cutoff = new Date(Date.now() - query.sinceDays * 24 * 60 * 60 * 1000);
+
+    const rows = await this.db
+      .select()
+      .from(newsArticles)
+      .where(
+        and(
+          eq(newsArticles.track, query.track),
+          isNull(newsArticles.surfacedAt),
+          isNotNull(newsArticles.publishedAt),
+          gte(newsArticles.publishedAt, cutoff),
+          // Host exato ou subdomínio — não casa 'outrofidcnews.com.br'.
+          sql`(
+            ${newsArticles.url} ILIKE ${`%://${host}/%`}
+            OR ${newsArticles.url} ILIKE ${`%.${host}/%`}
+          )`,
+        ),
+      )
+      .orderBy(desc(newsArticles.publishedAt))
+      .limit(query.limit);
+
+    return rows.map(ArticleMapper.toDomain);
   }
 }

@@ -70,6 +70,27 @@ só `.env` + `up -d`):
 | `FIDC_BLOCKED_HOST_SUFFIXES` | `pt` | Mantém a trilha FIDC no mercado brasileiro |
 | `CROSS_TRACK_DEDUP_ENABLED` | `true` | Não repete no digest FIDC o que já vai no do CEO |
 
+### Vaga fixa da fonte da casa (fidcnews.com.br)
+
+O fidcnews.com.br é do grupo, então **não** passa pelos filtros acima: em todo
+ciclo o digest FIDC abre com um item nosso, sem triagem e sem piso de
+relevância. O que ele nunca faz é repetir — só entra matéria ainda não enviada
+(`surfaced_at IS NULL`).
+
+| Variável | Default | O que faz |
+|---|---|---|
+| `OWN_SOURCE_ENABLED` | `true` | Desligue para a rota FIDC voltar a ser exatamente como era |
+| `OWN_SOURCE_FEED_URL` | `https://fidcnews.com.br/rss.xml` | Feed lido a cada ciclo |
+| `OWN_SOURCE_HOST` | `fidcnews.com.br` | Origem pública dos links + chave da busca no banco |
+| `OWN_SOURCE_MAX_AGE_DAYS` | `7` | Estoque: ciclo sem publicação nova ainda acha item inédito |
+| `OWN_SOURCE_MAX_ITEMS` | `1` | Itens da casa por ciclo |
+
+⚠️ **O feed publica links com a origem interna do servidor**
+(`http://127.0.0.1:3360/slug`), que não abrem no WhatsApp. A coleta reescreve a
+origem para `OWN_SOURCE_HOST` — se um dia o feed passar a publicar a URL
+pública, nada muda (a reescrita é idempotente). Se o site mudar de domínio,
+ajuste `OWN_SOURCE_HOST`.
+
 Garantia de projeto: **todo filtro falha para o lado de MANTER a notícia.** Lista
 vazia, URL inválida, classificação ausente ou banco fora do ar resultam em
 "não filtra" — o pior caso é o comportamento anterior ao filtro, nunca um digest

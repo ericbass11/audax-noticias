@@ -77,3 +77,28 @@ export function hasBlockedHostSuffix(url: string, blocked: readonly string[]): b
     return host === suffix || host.endsWith(`.${suffix}`);
   });
 }
+
+/**
+ * Troca a ORIGEM de uma URL, preservando caminho/query/hash.
+ *
+ * Motivação real: o feed do fidcnews.com.br (site do grupo) é gerado com a
+ * origem interna do servidor — `http://127.0.0.1:3360/slug` —, então o link que
+ * chegaria ao WhatsApp não abriria. O slug está certo; só a origem está errada.
+ *
+ * Reconstrói a URL a partir da origem nova em vez de atribuir `host`: o setter
+ * `host` só troca a porta quando o valor novo traz uma, e a porta interna
+ * (:3360) sobreviveria à reescrita.
+ *
+ * Tolerante: origem ausente/vazia, ou qualquer um dos dois lados não parseando
+ * como URL, devolve o link ORIGINAL — a reescrita nunca perde um item.
+ */
+export function rewriteUrlOrigin(url: string, origin: string | undefined): string {
+  if (!origin || origin.trim().length === 0) return url;
+  try {
+    const target = new URL(origin);
+    const parsed = new URL(url);
+    return new URL(`${parsed.pathname}${parsed.search}${parsed.hash}`, target).toString();
+  } catch {
+    return url;
+  }
+}

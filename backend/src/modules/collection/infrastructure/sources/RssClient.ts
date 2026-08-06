@@ -1,6 +1,25 @@
 import Parser from 'rss-parser';
 import type { NormalizedArticleInput } from '../../domain/entities/Article.js';
+import { rewriteUrlOrigin } from '../../domain/services/UrlPolicy.js';
 import type { NewsSource } from './NewsSource.js';
+
+export interface RssClientOptions {
+  /**
+   * Origem pública que substitui a origem dos links do feed.
+   *
+   * Motivação real: o feed do fidcnews.com.br é gerado com a origem INTERNA do
+   * servidor (`http://127.0.0.1:3360/slug`), então o link que chegaria ao
+   * WhatsApp não abre. O caminho (slug) está correto — só a origem está errada.
+   * Com esta opção, `http://127.0.0.1:3360/slug` vira `https://fidcnews.com.br/slug`.
+   *
+   * Ausente/inválida = mantém o link do feed como veio.
+   */
+  rewriteOrigin?: string;
+  /** Nome legível da fonte. Ausente = usa o `<title>` do feed. */
+  sourceName?: string;
+  /** Rótulo do cliente nos logs (`⚠️ Fonte "X" falhou`). */
+  label?: string;
+}
 
 /**
  * Agrega múltiplos feeds RSS (agro + economia) via rss-parser e normaliza
@@ -8,10 +27,15 @@ import type { NewsSource } from './NewsSource.js';
  * começa com placeholders que o operador preenche.
  */
 export class RssClient implements NewsSource {
-  readonly name = 'RSS';
+  readonly name: string;
   private readonly parser = new Parser({ timeout: 15000 });
 
-  constructor(private readonly feedUrls: string[]) {}
+  constructor(
+    private readonly feedUrls: string[],
+    private readonly options: RssClientOptions = {},
+  ) {
+    this.name = options.label ?? 'RSS';
+  }
 
   async fetch(): Promise<NormalizedArticleInput[]> {
     if (this.feedUrls.length === 0) {
@@ -42,18 +66,23 @@ export class RssClient implements NewsSource {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const xml = await res.text();
     const feed = await this.parser.parseString(xml);
-    const sourceName = feed.title ?? url;
+    const sourceName = this.options.sourceName ?? feed.title ?? url;
 
     return (feed.items ?? []).map((item) => ({
       title: item.title ?? '(sem título)',
       summary: item.contentSnippet ?? item.content ?? null,
-      url: item.link ?? url,
+      url: this.publicUrl(item.link ?? url),
       source: sourceName,
       sourceType: 'rss' as const,
       rawCategory: this.extractCategory(item.categories),
       publishedAt: item.isoDate ? new Date(item.isoDate) : null,
       imageUrl: item.enclosure?.url ?? null,
     }));
+  }
+
+  /** Ver `rewriteUrlOrigin`: aplica a origem pública configurada ao link. */
+  private publicUrl(link: string): string {
+    return rewriteUrlOrigin(link, this.options.rewriteOrigin);
   }
 
   /**

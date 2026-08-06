@@ -103,6 +103,24 @@ const envSchema = z.object({
   // brasileiro. Vazio desliga. Compara por sufixo: 'pt' pega sapo.pt e NÃO
   // pega algo.pt.br.
   FIDC_BLOCKED_HOST_SUFFIXES: z.string().default('pt'),
+  // --- Vaga FIXA da fonte da casa no digest FIDC (fidcnews.com.br) ---
+  // Conteúdo do grupo não disputa espaço com material de terceiros: entra em
+  // TODO ciclo, sem passar por triagem nem pelo piso de relevância, e abre o
+  // digest. Nunca repete um item já enviado (usa surfaced_at).
+  OWN_SOURCE_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+  OWN_SOURCE_FEED_URL: z.string().default('https://fidcnews.com.br/rss.xml'),
+  // Host público, usado para (a) reescrever a origem dos links do feed e (b)
+  // achar no banco o item da casa ainda não enviado.
+  OWN_SOURCE_HOST: z.string().default('fidcnews.com.br'),
+  OWN_SOURCE_NAME: z.string().default('FIDC News'),
+  // Janela de recência. Serve de estoque: um ciclo sem publicação nova ainda
+  // encontra um item inédito coletado nos dias anteriores.
+  OWN_SOURCE_MAX_AGE_DAYS: z.coerce.number().default(7),
+  // Quantos itens da casa por ciclo.
+  OWN_SOURCE_MAX_ITEMS: z.coerce.number().default(1),
   // Teto de itens da watchlist por ciclo (os mais recentes) — controla custo
   // de análise e o volume do portal, já que a rota não passa pela triagem.
   WATCHLIST_MAX_ITEMS: z.coerce.number().default(20),
