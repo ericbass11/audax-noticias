@@ -25,6 +25,11 @@ export class PromoteToGroupUseCase {
     private readonly newsRecipients: string[],
     private readonly fidcRecipients: string[],
     private readonly commoditiesRecipients: string[],
+    /** Promover o digest de notícias? Espelha NEWS_DIGEST_ENABLED — sem isto a
+     *  promoção reenviaria ao grupo justamente o que o ciclo não mandou. */
+    private readonly newsDigestEnabled = true,
+    /** Cotações só na promoção do ciclo da manhã (COMMODITIES_ONLY_MORNING). */
+    private readonly commoditiesOnlyMorning = false,
   ) {}
 
   async execute(periodKey: string): Promise<PromoteToGroupResult> {
@@ -35,7 +40,9 @@ export class PromoteToGroupUseCase {
 
     // Notícias (inclui o bloco de risco climático).
     try {
-      const news = await this.summaries.findByPeriodKey(periodKey);
+      const news = this.newsDigestEnabled
+        ? await this.summaries.findByPeriodKey(periodKey)
+        : null;
       if (news?.id && this.newsRecipients.length > 0) {
         await this.dispatch.execute(news.id, { recipients: this.newsRecipients });
         result.promoted.news = true;
@@ -57,7 +64,8 @@ export class PromoteToGroupUseCase {
 
     // Cotações — snapshot fresco enviado ao grupo.
     try {
-      if (this.commoditiesRecipients.length > 0) {
+      const runQuotes = !this.commoditiesOnlyMorning || periodKey.endsWith(':morning');
+      if (runQuotes && this.commoditiesRecipients.length > 0) {
         const r = await this.dispatchCommodityQuotes.execute(this.commoditiesRecipients);
         result.promoted.commodities = r.sent;
       }

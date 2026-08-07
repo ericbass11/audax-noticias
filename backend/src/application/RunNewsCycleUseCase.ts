@@ -115,6 +115,11 @@ export class RunNewsCycleUseCase {
     /** Vaga fixa do conteúdo da casa (fidcnews.com.br) no digest FIDC.
      *  Ausente = rota FIDC segue exatamente como era. */
     private readonly collectOwnSource?: CollectOwnSourceUseCase,
+    /** Disparar o digest de NOTÍCIAS no WhatsApp? Com false o ciclo roda
+     *  inteiro (portal continua recebendo), só a mensagem não sai. */
+    private readonly newsDigestEnabled = true,
+    /** Boletim de cotações só no ciclo da manhã? (mesmo padrão dos desastres). */
+    private readonly commoditiesOnlyMorning = false,
   ) {}
 
   /** Modo preview ativo? (todos os disparos do ciclo vão ao número pessoal). */
@@ -131,13 +136,18 @@ export class RunNewsCycleUseCase {
 
     try {
       // 0. Boletim de cotações de commodities (3º fluxo) — snapshot fresco,
-      // independente das notícias. Tolerante a falha.
-      try {
-        await this.dispatchCommodityQuotes.execute(
-          this.previewMode ? this.previewRecipients : undefined,
-        );
-      } catch (err) {
-        console.error('⚠️  Falha no boletim de cotações:', (err as Error).message);
+      // independente das notícias. Tolerante a falha. Pode ficar restrito ao
+      // ciclo da manhã (COMMODITIES_ONLY_MORNING), igual à trilha de desastres.
+      const runQuotes =
+        !this.commoditiesOnlyMorning || input.periodKey.endsWith(':morning');
+      if (runQuotes) {
+        try {
+          await this.dispatchCommodityQuotes.execute(
+            this.previewMode ? this.previewRecipients : undefined,
+          );
+        } catch (err) {
+          console.error('⚠️  Falha no boletim de cotações:', (err as Error).message);
+        }
       }
 
       // Marca se algum digest REAL (notícias/FIDC) foi ao preview — só então a
@@ -469,11 +479,18 @@ export class RunNewsCycleUseCase {
 
       await this.runs.update(run);
 
-      // 8. Só então dispara no WhatsApp.
-      const dispatchResult = await this.dispatch.execute(
-        persisted.id!,
-        this.previewMode ? { recipients: this.previewRecipients } : {},
-      );
+      // 8. Só então dispara no WhatsApp. Com NEWS_DIGEST_ENABLED=false o resumo
+      // fica persistido (portal e /api/summaries seguem completos) mas nada é
+      // enviado — é assim que se deixa só a rota FIDC ativa na mensageria.
+      const dispatchResult = this.newsDigestEnabled
+        ? await this.dispatch.execute(
+            persisted.id!,
+            this.previewMode ? { recipients: this.previewRecipients } : {},
+          )
+        : { summaryId: persisted.id!, sent: 0, failed: 0, skipped: 0 };
+      if (!this.newsDigestEnabled) {
+        console.log('🔕 Digest de notícias desligado (NEWS_DIGEST_ENABLED=false).');
+      }
       if (dispatchResult.sent > 0) dispatchedToPreview = true;
 
       return {

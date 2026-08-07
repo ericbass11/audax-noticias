@@ -217,6 +217,19 @@ const envSchema = z.object({
     .string()
     .default('false')
     .transform((v) => v === 'true'),
+  // Disparo do digest de NOTÍCIAS no WhatsApp. Com false, o ciclo continua
+  // coletando/classificando (o portal não esvazia) mas a mensagem não sai —
+  // é como deixar só a rota FIDC & Regulação ativa no WhatsApp.
+  NEWS_DIGEST_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
+  // Boletim de cotações só no ciclo da manhã (mesmo padrão de
+  // DISASTER_ONLY_MORNING). false = envia nos dois turnos.
+  COMMODITIES_ONLY_MORNING: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
 
   // Gateway LiteLLM (quando LLM_PROVIDER=litellm).
   LITELLM_BASE_URL: z.string().url().default('http://localhost:4000'),

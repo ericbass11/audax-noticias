@@ -352,6 +352,8 @@ export function buildContainer() {
     env.evolutionRecipients,
     fidcRecipients,
     commoditiesRecipients,
+    env.NEWS_DIGEST_ENABLED,
+    env.COMMODITIES_ONLY_MORNING,
   );
 
   const runNewsCycle = new RunNewsCycleUseCase(
@@ -392,6 +394,9 @@ export function buildContainer() {
     undefined, // dedupService: default
     // Vaga fixa do conteúdo da casa. undefined = rota FIDC como era.
     collectOwnSource,
+    // Deixar só a rota FIDC & Regulação na mensageria + cotações só de manhã.
+    env.NEWS_DIGEST_ENABLED,
+    env.COMMODITIES_ONLY_MORNING,
   );
 
   const newsFeedQuery = new NewsFeedQuery(db);
@@ -410,6 +415,8 @@ export function buildContainer() {
       metricsRepository,
     },
     queries: { newsFeedQuery },
+    // Exposto para o boot conferir sabor/conectividade da Evolution.
+    gateways: { whatsapp },
     useCases: {
       runNewsCycle,
       resendSummary,
