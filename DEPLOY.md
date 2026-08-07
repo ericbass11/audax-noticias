@@ -133,6 +133,21 @@ Esperado: `{"data":{"Connected":true,"LoggedIn":true,"Name":"..."},"message":"su
 - `404` em `/send/text` na hora do disparo → `EVOLUTION_API_FLAVOR` está como
   `v2` mas a Evolution é GO (ou vice-versa).
 
+O backend agora faz esse check sozinho no boot. Confira o log logo após subir:
+
+```bash
+docker compose -f docker-compose.prod.yml logs backend | grep Evolution
+```
+
+- `📱 Evolution ok (go) em http://...` → sabor e conectividade conferem.
+- `❌ Evolution NÃO utilizável ...` → **os disparos vão falhar**; corrija antes do
+  próximo ciclo. A linha diz se foi sabor errado, chave recusada ou host inacessível.
+
+> **`.env` é o único estado não versionado do deploy.** Um `git clone` novo ou um
+> `git clean -fdx` o apaga, e o serviço volta com a configuração de outra época
+> sem reclamar. Faça `cp .env .env.backup-$(date +%F)` antes de mexer, e depois
+> de qualquer redeploy confira o log de boot acima.
+
 > Na `v2` (Baileys) esse mesmo check é
 > `/instance/connectionState/{instance}` e devolve `{"instance":{...,"state":"open"}}`.
 

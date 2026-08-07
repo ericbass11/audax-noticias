@@ -86,6 +86,37 @@ export class EvolutionApiClient implements WhatsAppGateway {
     });
   }
 
+  /**
+   * Confere, no boot, se o sabor configurado bate com o servidor apontado por
+   * `EVOLUTION_BASE_URL`. Os dois sabores só divergem no PATH, então uma
+   * `BASE_URL` de v2 com `EVOLUTION_API_FLAVOR=go` sobe calada e só falha na
+   * hora do disparo, com 404 — foi assim que um ciclo inteiro ficou sem
+   * entregar. Nunca lança: é diagnóstico, não pode derrubar o serviço.
+   */
+  async checkHealth(): Promise<{ ok: boolean; detail: string }> {
+    const path =
+      this.config.flavor === 'go'
+        ? '/instance/status'
+        : `/instance/connectionState/${this.config.instance}`;
+    const url = `${this.config.baseUrl.replace(/\/+$/, '')}${path}`;
+    try {
+      const res = await fetch(url, { headers: { apikey: this.config.apiKey } });
+      const body = (await res.text().catch(() => '')).slice(0, 200);
+      if (res.status === 404) {
+        return {
+          ok: false,
+          detail:
+            `404 em ${path} — EVOLUTION_API_FLAVOR='${this.config.flavor}' não combina ` +
+            `com o servidor em ${this.config.baseUrl}. Confira o sabor (go|v2).`,
+        };
+      }
+      if (!res.ok) return { ok: false, detail: `HTTP ${res.status} em ${path}: ${body}` };
+      return { ok: true, detail: body };
+    } catch (err) {
+      return { ok: false, detail: `inacessível: ${(err as Error).message}` };
+    }
+  }
+
   /** false = envio desligado por flag (já logou); true = pode seguir. */
   private ensureEnabled(recipient: string): boolean {
     if (!this.config.enabled) {

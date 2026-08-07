@@ -3,9 +3,15 @@ import { z } from 'zod';
 import type { Container } from '../../container.js';
 import { enqueueResend } from '../../queue/queues.js';
 
+// Aceita o turno e, opcionalmente, o sufixo da trilha (ex.: `:fidc`), que é
+// como o digest de rota é persistido. Sem isso o resumo FIDC ficava
+// inalcançável pelo reenvio manual — só o de notícias passava.
 const periodKeySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}:(morning|evening)$/, 'periodKey deve ser YYYY-MM-DD:morning|evening');
+  .regex(
+    /^\d{4}-\d{2}-\d{2}:(morning|evening)(:[a-z]+)?$/,
+    'periodKey deve ser YYYY-MM-DD:morning|evening, com sufixo de trilha opcional (ex.: :fidc)',
+  );
 
 const resendSchema = z.object({
   periodKey: periodKeySchema,

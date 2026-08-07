@@ -26,6 +26,18 @@ async function bootstrap(): Promise<void> {
 
   console.log(`🚀 Audax Notícias no ar — http://localhost:${env.PORT} (${env.NODE_ENV})`);
 
+  // Diagnóstico da Evolution logo no boot: sabor errado para a BASE_URL só
+  // aparecia como 404 na hora do disparo, horas depois. Não bloqueia a subida.
+  void container.gateways.whatsapp.checkHealth().then(({ ok, detail }) => {
+    if (ok) {
+      console.log(
+        `📱 Evolution ok (${env.EVOLUTION_API_FLAVOR}) em ${env.EVOLUTION_BASE_URL}: ${detail}`,
+      );
+    } else {
+      console.error(`❌ Evolution NÃO utilizável — os disparos vão falhar. ${detail}`);
+    }
+  });
+
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} recebido — encerrando...`);
     tasks.forEach((t) => t.stop());

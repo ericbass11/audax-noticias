@@ -31,7 +31,13 @@ export class DrizzleDispatchRepository implements DispatchRepository {
           target: [dispatches.summaryId, dispatches.recipient],
         });
     }
-    return this.findBySummaryId(summaryId);
+    // SÓ as linhas dos destinatários PEDIDOS. Devolver todas as linhas do
+    // resumo fazia um reenvio (ainda mais com `force`) reabrir envios para
+    // destinatários de configurações antigas — foi assim que um digest saiu
+    // para um grupo que já não estava em EVOLUTION_RECIPIENTS.
+    const wanted = new Set(recipients);
+    const all = await this.findBySummaryId(summaryId);
+    return all.filter((d) => wanted.has(d.recipient));
   }
 
   async findBySummaryId(summaryId: string): Promise<Dispatch[]> {
